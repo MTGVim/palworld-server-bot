@@ -15,6 +15,7 @@
 - Node.js 20 (이미지는 `node:20-alpine` 사용)
 - Discord 봇 토큰
 - 팔월드 서버 관리자 API가 활성화된 컨테이너 (`palworld-server`)
+- (옵션) Watchtower 컨테이너를 통한 자동 업데이트
 
 ---
 
@@ -28,8 +29,17 @@
 - **AUTO_PAUSE_TIMEOUT**: 자동 일시중지까지 대기 시간(초). 기본값 `300`
 - **CHECK_INTERVAL**: 접속자 체크 주기(ms). 기본값 `10000`
 - **WAKE_PROTECTION_MINUTES**: 기동 후 자동 일시중지 보호 시간(분). 기본값 `30`
+- **ANNOUNCE_CHANNEL_ID**: 봇이 재시작될 때 알림을 보낼 디스코드 채널 ID (선택)
 
-`example.yml`에 docker-compose 예시가 있습니다.
+docker-compose를 사용하는 경우에는 `docker-compose.yml`의 `environment` 섹션을 참고하세요.
+
+이 저장소의 기본 `docker-compose.yml`은 다음 환경 변수를 예시로 포함합니다.
+
+- **DISCORD_BOT_TOKEN**
+- **RCON_HOST**
+- **RCON_PORT**
+- **RCON_PASSWORD**
+- **ANNOUNCE_CHANNEL_ID**
 
 ---
 
@@ -64,7 +74,10 @@ docker run --rm \
   palworld-monitor:latest
 ```
 
-운영 환경에서는 `example.yml`을 참고해 docker-compose로 함께 띄우는 구성을 권장합니다.
+운영 환경에서는 이 저장소에 포함된 `docker-compose.yml`을 참고해 palworld 서버와 함께 띄우는 구성을 권장합니다.
+
+`docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker pause/unpause/restart` 명령으로
+`palworld-server` 컨테이너를 제어하도록 구성되어 있습니다.
 
 ---
 
@@ -76,4 +89,7 @@ docker run --rm \
 - `!재시작`     : `docker restart palworld-server`
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
+
+봇이 컨테이너 재시작 등으로 다시 켜질 때, `ANNOUNCE_CHANNEL_ID`가 설정되어 있다면 해당 채널에
+`"🔄 palbot가 재시작되었습니다."` 메시지를 자동으로 남깁니다.
 
