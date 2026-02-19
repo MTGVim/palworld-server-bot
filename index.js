@@ -170,6 +170,21 @@ const client = new Client({
   ],
 });
 
+client.once('ready', async () => {
+    console.log(`Logged in as ${client.user.tag}`);
+  
+    const channelId = process.env.ANNOUNCE_CHANNEL_ID;
+  
+    if (channelId) {
+      try {
+        const channel = await client.channels.fetch(channelId);
+        await channel.send("🔄 palbot가 재시작되었습니다.");
+      } catch (err) {
+        console.error("재시작 알림 전송 실패:", err);
+      }
+    }
+  });
+
 client.on("clientReady", () => {
   console.log("봇 준비 완료");
 });

@@ -1,0 +1,25 @@
+services:
+  palbot:
+    image: ghcr.io/mtgvim/palworld-server-bot:latest
+    restart: unless-stopped
+    environment:
+      DISCORD_BOT_TOKEN: "여기에_봇토큰"
+      RCON_HOST: "palworld-server"
+      RCON_PORT: "25575"
+      RCON_PASSWORD: "여기에_rcon비번"
+      ANNOUNCE_CHANNEL_ID: "여기에 알림 채널 ID"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      --schedule "0 0 5 * * *" # 5시간마다 체크
+      --label-enable
+      --cleanup
+      --rolling-restart
