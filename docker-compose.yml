@@ -7,6 +7,5 @@ services:
       RCON_HOST: 172.17.0.1
       RCON_PORT: "25575"
       RCON_PASSWORD: "여기에_rcon비번"
-      RESTART_WEBHOOK_URL: "https://discord.com/api/webhooks/xxxx"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

@@ -101,28 +101,6 @@ async function getPlayers() {
   }
 }
 
-async function sendRestartNotice() {
-    const elapsed = ((Date.now() - bootTime) / 1000).toFixed(2);
-  
-    console.log(`Logged in as ${client.user.tag}`);
-    console.log(`Startup time: ${elapsed}s`);
-  
-    const webhook = process.env.RESTART_WEBHOOK_URL;
-    if (!webhook) return;
-  
-    try {
-      await fetch(webhook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: `🔄 palbot 업데이트 완료 (${elapsed}초 소요)`
-        })
-      });
-    } catch (err) {
-      console.error("Webhook 전송 실패:", err);
-    }
-}
-
 // 🔥 AUTO PAUSE LOOP
 setInterval(async () => {
   try {
@@ -192,11 +170,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
-});
-
-client.once("ready", async () => {
-  console.log(`Logged in as ${client.user.username}`);
-  await sendRestartNotice();
 });
 
 client.on("clientReady", () => {
