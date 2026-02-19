@@ -1,6 +1,8 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
 
+const bootTime = Date.now();
+
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const SERVER_URL = process.env.SERVER_URL;
 const PASSWORD = process.env.ADMIN_PASSWORD;
@@ -99,6 +101,28 @@ async function getPlayers() {
   }
 }
 
+async function sendRestartNotice() {
+    const elapsed = ((Date.now() - bootTime) / 1000).toFixed(2);
+  
+    console.log(`Logged in as ${client.user.tag}`);
+    console.log(`Startup time: ${elapsed}s`);
+  
+    const webhook = process.env.RESTART_WEBHOOK_URL;
+    if (!webhook) return;
+  
+    try {
+      await fetch(webhook, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: `🔄 palbot 업데이트 완료 (${elapsed}초 소요)`
+        })
+      });
+    } catch (err) {
+      console.error("Webhook 전송 실패:", err);
+    }
+}
+
 // 🔥 AUTO PAUSE LOOP
 setInterval(async () => {
   try {
@@ -170,20 +194,10 @@ const client = new Client({
   ],
 });
 
-client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}`);
-  
-    const channelId = process.env.ANNOUNCE_CHANNEL_ID;
-  
-    if (channelId) {
-      try {
-        const channel = await client.channels.fetch(channelId);
-        await channel.send("🔄 palbot가 재시작되었습니다.");
-      } catch (err) {
-        console.error("재시작 알림 전송 실패:", err);
-      }
-    }
-  });
+client.once("ready", async () => {
+  console.log(`Logged in as ${client.user.username}`);
+  await sendRestartNotice();
+});
 
 client.on("clientReady", () => {
   console.log("봇 준비 완료");

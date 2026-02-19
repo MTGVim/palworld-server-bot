@@ -4,22 +4,22 @@ services:
     restart: unless-stopped
     environment:
       DISCORD_BOT_TOKEN: "여기에_봇토큰"
-      RCON_HOST: "palworld-server"
+      RCON_HOST: 172.17.0.1
       RCON_PORT: "25575"
       RCON_PASSWORD: "여기에_rcon비번"
-      ANNOUNCE_CHANNEL_ID: "여기에 알림 채널 ID"
+      RESTART_WEBHOOK_URL: "https://discord.com/api/webhooks/xxxx"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
 
   watchtower:
-    image: containrrr/watchtower
+    image: containrrr/watchtower:latest
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     command: >
-      --schedule "0 0 5 * * *" # 5시간마다 체크
+      --schedule "0 0 5 * * *"   # 매일 새벽 5시
       --label-enable
       --cleanup
       --rolling-restart
