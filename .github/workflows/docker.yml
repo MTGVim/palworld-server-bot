@@ -35,11 +35,12 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha
-
-      - name: Build and Push
+            
+      - name: Build & Push
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
