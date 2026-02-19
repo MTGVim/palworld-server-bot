@@ -10,17 +10,3 @@ services:
       RESTART_WEBHOOK_URL: "https://discord.com/api/webhooks/xxxx"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
-
-  watchtower:
-    image: containrrr/watchtower:latest
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    command:
-      - --schedule
-      - "0 0 5 * * *"
-      - --label-enable
-      - --cleanup
-      - --rolling-restart
