@@ -8,6 +8,8 @@ services:
       RCON_HOST: palworld-server
       RCON_PORT: 25575
       RCON_PASSWORD: ${RCON_PASSWORD}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 #     networks:
 #       - palworld-server
 
