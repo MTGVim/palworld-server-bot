@@ -1,5 +1,7 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
+const fs = require("fs/promises");
+const path = require("path");
 const { evaluateAutoPauseDecision } = require("./pause-decision-guard");
 
 const bootTime = Date.now();
@@ -31,6 +33,9 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
 const STATUS_CHANNEL_ID = (process.env.STATUS_CHANNEL_ID || "").trim();
 const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
 const BOT_IMAGE_REF = (process.env.BOT_IMAGE_REF || "ghcr.io/mtgvim/palworld-server-bot:latest").trim();
+const RPS_STATS_PATH = (
+  process.env.RPS_STATS_PATH || "/app/data/rps-stats.json"
+).trim();
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -41,6 +46,9 @@ let lastNonZeroSeenAt = null;
 const recentPlayerCounts = [];
 let idleWarningSentSinceStartup = false;
 let updateInProgress = false;
+let rpsStats = {};
+let rpsStatsLoaded = false;
+let rpsStatsWriteQueue = Promise.resolve();
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -353,6 +361,102 @@ function evaluateRps(userChoice, botChoice) {
   return "패배";
 }
 
+async function ensureRpsStatsLoaded() {
+  if (rpsStatsLoaded) {
+    return;
+  }
+
+  try {
+    await fs.mkdir(path.dirname(RPS_STATS_PATH), { recursive: true });
+    const raw = await fs.readFile(RPS_STATS_PATH, "utf8");
+    const parsed = safeJsonParse(raw, {});
+    rpsStats = parsed && typeof parsed === "object" ? parsed : {};
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.log("[rps] failed to load stats file:", err.message);
+    }
+    rpsStats = {};
+  }
+
+  rpsStatsLoaded = true;
+}
+
+function getOrCreateRpsRecord(userId) {
+  if (!rpsStats[userId] || typeof rpsStats[userId] !== "object") {
+    rpsStats[userId] = {
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      games: 0,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  const record = rpsStats[userId];
+  record.wins = Number.isFinite(record.wins) ? record.wins : 0;
+  record.losses = Number.isFinite(record.losses) ? record.losses : 0;
+  record.draws = Number.isFinite(record.draws) ? record.draws : 0;
+  record.games = Number.isFinite(record.games) ? record.games : 0;
+  return record;
+}
+
+async function persistRpsStats() {
+  const snapshot = JSON.stringify(rpsStats, null, 2);
+  const dir = path.dirname(RPS_STATS_PATH);
+  const tempPath = `${RPS_STATS_PATH}.tmp`;
+
+  rpsStatsWriteQueue = rpsStatsWriteQueue
+    .then(async () => {
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(tempPath, snapshot, "utf8");
+      await fs.rename(tempPath, RPS_STATS_PATH);
+    })
+    .catch((err) => {
+      console.log("[rps] failed to persist stats:", err.message);
+    });
+
+  await rpsStatsWriteQueue;
+}
+
+async function updateRpsStatsForUser(userId, result) {
+  await ensureRpsStatsLoaded();
+  const record = getOrCreateRpsRecord(userId);
+  record.games += 1;
+  if (result === "승리") record.wins += 1;
+  if (result === "패배") record.losses += 1;
+  if (result === "무승부") record.draws += 1;
+  record.updatedAt = new Date().toISOString();
+  await persistRpsStats();
+  return record;
+}
+
+function formatRpsRecord(record) {
+  const wins = record.wins || 0;
+  const losses = record.losses || 0;
+  const draws = record.draws || 0;
+  const games = record.games || 0;
+  const winRate = games > 0 ? ((wins / games) * 100).toFixed(1) : "0.0";
+  return `전적 ${wins}승 ${losses}패 ${draws}무 | ${games}전 | 승률 ${winRate}%`;
+}
+
+function getRpsRanking(limit) {
+  return Object.entries(rpsStats)
+    .map(([userId, record]) => ({
+      userId,
+      wins: Number.isFinite(record.wins) ? record.wins : 0,
+      losses: Number.isFinite(record.losses) ? record.losses : 0,
+      draws: Number.isFinite(record.draws) ? record.draws : 0,
+      games: Number.isFinite(record.games) ? record.games : 0,
+    }))
+    .filter((row) => row.games > 0)
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      if (b.games !== a.games) return b.games - a.games;
+      return a.losses - b.losses;
+    })
+    .slice(0, limit);
+}
+
 function getWatchtowerRunOnceCommand() {
   if (!isSafeDockerRef(WATCHTOWER_IMAGE)) {
     throw new Error(
@@ -606,6 +710,7 @@ const client = new Client({
 
 client.on("clientReady", async () => {
   console.log("봇 준비 완료");
+  await ensureRpsStatsLoaded();
 
   const versionInfo = await getBotVersionInfo();
   console.log("[version] ready info:", formatBootVersionMessage(versionInfo));
@@ -646,7 +751,7 @@ client.on("messageCreate", async (msg) => {
   if (content === "!명령어") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!가위바위보 <가위|바위|보>\n!봇 버전\n!봇 업데이트"
+        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
     );
   }
 
@@ -728,15 +833,44 @@ client.on("messageCreate", async (msg) => {
 
   const rpsMatch = content.match(/^!가위바위보(?:\s+(.+))?$/);
   if (rpsMatch) {
-    const userChoice = normalizeRpsChoice(rpsMatch[1]);
+    await ensureRpsStatsLoaded();
+
+    const rpsArg = String(rpsMatch[1] || "").trim();
+    if (rpsArg === "전적") {
+      const record = getOrCreateRpsRecord(msg.author.id);
+      return msg.reply(`📊 <@${msg.author.id}> ${formatRpsRecord(record)}`);
+    }
+
+    const rankingMatch = rpsArg.match(/^랭킹(?:\s+(\d+))?$/);
+    if (rankingMatch) {
+      const limit = rankingMatch[1] ? parseInt(rankingMatch[1], 10) : 10;
+      if (!Number.isInteger(limit) || limit <= 0) {
+        return msg.reply("⚠️ 사용법: `!가위바위보 랭킹` 또는 `!가위바위보 랭킹 N`");
+      }
+
+      const ranking = getRpsRanking(Math.min(limit, 30));
+      if (ranking.length === 0) {
+        return msg.reply("📊 아직 가위바위보 전적이 없습니다.");
+      }
+
+      const lines = ranking.map((row, idx) => (
+        `${idx + 1}. <@${row.userId}> - ${row.wins}승 ${row.losses}패 ${row.draws}무 (${row.games}전)`
+      ));
+      return msg.reply(`🏆 가위바위보 랭킹 TOP ${ranking.length}\n${lines.join("\n")}`);
+    }
+
+    const userChoice = normalizeRpsChoice(rpsArg);
     if (!userChoice) {
-      return msg.reply("⚠️ 사용법: `!가위바위보 가위|바위|보`");
+      return msg.reply(
+        "⚠️ 사용법: `!가위바위보 가위|바위|보`, `!가위바위보 전적`, `!가위바위보 랭킹 [N]`"
+      );
     }
 
     const botChoice = ["가위", "바위", "보"][Math.floor(Math.random() * 3)];
     const result = evaluateRps(userChoice, botChoice);
+    const record = await updateRpsStatsForUser(msg.author.id, result);
     return msg.reply(
-      `✊ 가위바위보\n- 당신: ${userChoice}\n- 봇: ${botChoice}\n- 결과: ${result}`
+      `✊ 가위바위보\n- 당신: ${userChoice}\n- 봇: ${botChoice}\n- 결과: ${result}\n- 누적: ${formatRpsRecord(record)}`
     );
   }
 

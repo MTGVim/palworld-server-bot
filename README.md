@@ -31,6 +31,7 @@
 - **STATUS_CHANNEL_ID**: 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID (선택)
 - **WATCHTOWER_IMAGE**: 1회 업데이트 실행 시 사용할 Watchtower 이미지 (기본 `containrrr/watchtower:latest`)
 - **BOT_IMAGE_REF**: `!봇 버전` 조회 시 기본 대상 이미지 ref (기본 `ghcr.io/mtgvim/palworld-server-bot:latest`)
+- **RPS_STATS_PATH**: `!가위바위보` 전적 저장 파일 경로 (기본 `/app/data/rps-stats.json`)
 - **AUTO_PAUSE_TIMEOUT**: 유휴 경고 기준 시간(초). 기본값 `300`
 - **CHECK_INTERVAL**: 접속자 체크 주기(ms). 기본값 `10000`
 - **PLAYERS_API_TIMEOUT_MS**: 접속자 API 타임아웃(ms). 기본값 `5000`
@@ -76,6 +77,7 @@ docker run --rm \
 
 `docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker unpause/pause/restart` 명령으로
 `palworld-server` 컨테이너를 제어하도록 구성되어 있습니다.
+또한 `./data:/app/data` 볼륨을 사용해 `!가위바위보` 전적 파일을 재시작 후에도 유지합니다.
 또한 `com.centurylinklabs.watchtower.enable=true` 라벨을 사용해 `!봇 업데이트` 대상 컨테이너를 명시합니다.
 
 자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 `⚠️ N분동안 접속자가 없습니다.` 경고를 1회만 전송합니다.
@@ -94,5 +96,7 @@ docker run --rm \
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
 - `!추첨 [N]`   : 온라인 Discord 유저(봇 제외) 중 1명 또는 N명 랜덤 추첨
 - `!가위바위보 <가위|바위|보>` : 봇과 가위바위보 1회 진행
+- `!가위바위보 전적` : 내 누적 전적(승/패/무/승률) 조회
+- `!가위바위보 랭킹 [N]` : 승수 기준 상위 랭킹 조회 (기본 10명)
 - `!봇 버전`    : 현재 실행 중인 봇 이미지 정보(이미지명/sha/생성시각, Asia/Seoul +09:00 기준) 조회
 - `!봇 업데이트`: Watchtower 1회 실행으로 라벨 대상 컨테이너 업데이트 확인/적용 (관리자 전용)
