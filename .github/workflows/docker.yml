@@ -36,6 +36,8 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            BUILD_COMMIT_AT=${{ github.event.head_commit.timestamp }}
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:latest
             ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}
