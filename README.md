@@ -28,7 +28,7 @@
 - **ADMIN_PASSWORD**: 관리자 비밀번호 (HTTP Basic Auth용)
 - **ADMIN_USER_IDS**: `!봇 업데이트` 실행 권한을 가진 Discord 사용자 ID 목록 (쉼표 구분)
 - **BOT_UPDATE_ENABLED**: 봇 업데이트 명령 활성화 여부 (`true`/`false`, 기본 `false`)
-- **STATUS_CHANNEL_ID**: 봇 ready 시 버전 정보를 보낼 Discord 채널 ID (선택)
+- **STATUS_CHANNEL_ID**: 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID (선택)
 - **WATCHTOWER_IMAGE**: 1회 업데이트 실행 시 사용할 Watchtower 이미지 (기본 `containrrr/watchtower:latest`)
 - **BOT_IMAGE_REF**: `!봇 버전` 조회 시 기본 대상 이미지 ref (기본 `ghcr.io/mtgvim/palworld-server-bot:latest`)
 - **AUTO_PAUSE_TIMEOUT**: 유휴 경고 기준 시간(초). 기본값 `300`
@@ -93,5 +93,6 @@ docker run --rm \
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
 - `!추첨 [N]`   : 온라인 Discord 유저(봇 제외) 중 1명 또는 N명 랜덤 추첨
+- `!가위바위보 <가위|바위|보>` : 봇과 가위바위보 1회 진행
 - `!봇 버전`    : 현재 실행 중인 봇 이미지 정보(이미지명/sha/생성시각, Asia/Seoul +09:00 기준) 조회
 - `!봇 업데이트`: Watchtower 1회 실행으로 라벨 대상 컨테이너 업데이트 확인/적용 (관리자 전용)

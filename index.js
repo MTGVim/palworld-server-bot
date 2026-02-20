@@ -204,6 +204,18 @@ function formatVersionMessage(versionInfo) {
   );
 }
 
+function formatBootVersionMessage(versionInfo) {
+  if (!versionInfo.ok) {
+    return `ℹ️ ${versionInfo.message}`;
+  }
+
+  return (
+    "ℹ️ 봇 버전 정보(부팅)\n" +
+    `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
+    `- Revision: ${versionInfo.revision}`
+  );
+}
+
 function formatCreatedAtSeoul(createdAt) {
   if (!createdAt || createdAt === "(unknown)") {
     return createdAt || "(unknown)";
@@ -319,6 +331,26 @@ function pickRandomMembers(members, count) {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, count);
+}
+
+function normalizeRpsChoice(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (value === "가위" || value === "scissors") return "가위";
+  if (value === "바위" || value === "rock") return "바위";
+  if (value === "보" || value === "paper") return "보";
+  return "";
+}
+
+function evaluateRps(userChoice, botChoice) {
+  if (userChoice === botChoice) return "무승부";
+  if (
+    (userChoice === "가위" && botChoice === "보") ||
+    (userChoice === "바위" && botChoice === "가위") ||
+    (userChoice === "보" && botChoice === "바위")
+  ) {
+    return "승리";
+  }
+  return "패배";
 }
 
 function getWatchtowerRunOnceCommand() {
@@ -576,7 +608,7 @@ client.on("clientReady", async () => {
   console.log("봇 준비 완료");
 
   const versionInfo = await getBotVersionInfo();
-  console.log("[version] ready info:", formatVersionMessage(versionInfo));
+  console.log("[version] ready info:", formatBootVersionMessage(versionInfo));
 
   if (!STATUS_CHANNEL_ID) {
     return;
@@ -588,7 +620,7 @@ client.on("clientReady", async () => {
       console.log("[version] STATUS_CHANNEL_ID is not a text channel.");
       return;
     }
-    await statusChannel.send(formatVersionMessage(versionInfo));
+    await statusChannel.send(formatBootVersionMessage(versionInfo));
   } catch (err) {
     console.log("[version] failed to send ready version message:", err.message);
   }
@@ -614,7 +646,7 @@ client.on("messageCreate", async (msg) => {
   if (content === "!명령어") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!봇 버전\n!봇 업데이트"
+        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!가위바위보 <가위|바위|보>\n!봇 버전\n!봇 업데이트"
     );
   }
 
@@ -691,6 +723,20 @@ client.on("messageCreate", async (msg) => {
 
     return msg.reply(
       `🎉 추첨 결과 (${requestedCount}명 / 온라인 ${onlineMembers.length}명)\n${mentions}`
+    );
+  }
+
+  const rpsMatch = content.match(/^!가위바위보(?:\s+(.+))?$/);
+  if (rpsMatch) {
+    const userChoice = normalizeRpsChoice(rpsMatch[1]);
+    if (!userChoice) {
+      return msg.reply("⚠️ 사용법: `!가위바위보 가위|바위|보`");
+    }
+
+    const botChoice = ["가위", "바위", "보"][Math.floor(Math.random() * 3)];
+    const result = evaluateRps(userChoice, botChoice);
+    return msg.reply(
+      `✊ 가위바위보\n- 당신: ${userChoice}\n- 봇: ${botChoice}\n- 결과: ${result}`
     );
   }
 
