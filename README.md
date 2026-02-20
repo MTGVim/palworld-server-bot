@@ -3,7 +3,7 @@
 팔월드 전용 Docker 컨테이너(`palworld-server`)를 Discord 봇으로 제어하는 작은 유틸리티입니다.
 
 - **기능**
-  - 일정 시간 접속자가 없으면 자동으로 `palworld-server` 컨테이너를 `pause` (AUTO_PAUSE)
+  - 일정 시간 접속자가 없으면 Discord 채널에 유휴 경고 전송 (자동 강제 `pause` 없음)
   - 디스코드 명령어로 컨테이너 기동/일시중지/재시작/상태/접속자 조회
   - HTTP API (`/v1/api/players`) 를 통해 현재 접속자 수 확인
 
@@ -25,9 +25,12 @@
 - **DISCORD_BOT_TOKEN**: 디스코드 봇 토큰
 - **SERVER_URL**: 팔월드 서버 관리자 API 엔드포인트 (예: `http://172.17.0.1:8212`)
 - **ADMIN_PASSWORD**: 관리자 비밀번호 (HTTP Basic Auth용)
-- **AUTO_PAUSE_TIMEOUT**: 자동 일시중지까지 대기 시간(초). 기본값 `300`
+- **AUTO_PAUSE_TIMEOUT**: 유휴 경고 기준 시간(초). 기본값 `300`
 - **CHECK_INTERVAL**: 접속자 체크 주기(ms). 기본값 `10000`
-- **WAKE_PROTECTION_MINUTES**: 기동 후 자동 일시중지 보호 시간(분). 기본값 `30`
+- **WAKE_PROTECTION_MINUTES**: 기동 후 유휴 경고 보호 시간(분). 기본값 `30`
+- **STABLE_ZERO_REQUIRED_SAMPLES**: 유휴 상태로 판단하기 위한 연속 0명 샘플 수. 기본값 `2`
+- **NON_ZERO_GRACE_SECONDS**: 최근 접속자가 있었으면 경고를 보류하는 grace 시간(초). 기본값 `20`
+- **IDLE_WARNING_COOLDOWN_SECONDS**: 유휴 경고 재전송 최소 간격(초). 기본값 `300`
 
 `docker-compose.yml` 사용 시 `SERVER_URL`, `ADMIN_PASSWORD`를 추가로 설정해야 `!상태`, `!접속자` 명령이 동작합니다.
 RCON 관련 변수는 선택적으로 설정할 수 있습니다.
@@ -72,8 +75,10 @@ docker run --rm \
 
 운영 환경에서는 이 저장소에 포함된 `docker-compose.yml`을 참고해 palworld 서버와 함께 띄우는 구성을 권장합니다.
 
-`docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker pause/unpause/restart` 명령으로
+`docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker unpause/pause/restart` 명령으로
 `palworld-server` 컨테이너를 제어하도록 구성되어 있습니다.
+
+자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 경고 메시지만 전송합니다.
 
 ---
 
@@ -85,4 +90,3 @@ docker run --rm \
 - `!재시작`     : `docker restart palworld-server`
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
-

@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
+const { evaluateAutoPauseDecision } = require("./pause-decision-guard");
 
 const bootTime = Date.now();
 
@@ -13,6 +14,18 @@ const WAKE_PROTECTION_MINUTES = parseInt(
   process.env.WAKE_PROTECTION_MINUTES || "30",
   10
 );
+const STABLE_ZERO_REQUIRED_SAMPLES = parseInt(
+  process.env.STABLE_ZERO_REQUIRED_SAMPLES || "2",
+  10
+);
+const NON_ZERO_GRACE_SECONDS = parseInt(
+  process.env.NON_ZERO_GRACE_SECONDS || "20",
+  10
+);
+const IDLE_WARNING_COOLDOWN_SECONDS = parseInt(
+  process.env.IDLE_WARNING_COOLDOWN_SECONDS || "300",
+  10
+);
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -20,6 +33,9 @@ const AUTH =
 let lastActive = Date.now();
 let pauseProtectionUntil = 0;
 let botChannel = null;
+let lastNonZeroSeenAt = null;
+const recentPlayerCounts = [];
+let lastIdleWarningAt = 0;
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -75,6 +91,18 @@ async function isPaused() {
 }
 
 async function getPlayers() {
+  const snapshot = await getPlayersSnapshot("players");
+  return snapshot.players;
+}
+
+function recordPlayerSample(count) {
+  recentPlayerCounts.push(count);
+  while (recentPlayerCounts.length > STABLE_ZERO_REQUIRED_SAMPLES) {
+    recentPlayerCounts.shift();
+  }
+}
+
+async function getPlayersSnapshot(logPrefix = "players") {
   try {
     const r = await fetchWithTimeout(
       SERVER_URL + "/v1/api/players",
@@ -83,21 +111,34 @@ async function getPlayers() {
     );
     if (!r.ok) {
       console.log(
-        "[players] failed to fetch players. status:",
+        `[${logPrefix}] failed to fetch players. status:`,
         r.status,
         r.statusText
       );
-      return [];
+      return {
+        ok: false,
+        players: [],
+        count: 0,
+      };
     }
     const d = await r.json();
+    const players = Array.isArray(d.players) ? d.players : [];
     console.log(
-      "[players] fetched players:",
-      Array.isArray(d.players) ? d.players.length : 0
+      `[${logPrefix}] fetched players:`,
+      players.length
     );
-    return d.players || [];
+    return {
+      ok: true,
+      players,
+      count: players.length,
+    };
   } catch (err) {
-    console.log("[players] error while fetching players:", err.message);
-    return [];
+    console.log(`[${logPrefix}] error while fetching players:`, err.message);
+    return {
+      ok: false,
+      players: [],
+      count: 0,
+    };
   }
 }
 
@@ -110,50 +151,93 @@ setInterval(async () => {
       return;
     }
 
+    const snapshot = await getPlayersSnapshot("loop");
+    const now = Date.now();
+
+    if (snapshot.ok) {
+      recordPlayerSample(snapshot.count);
+      if (snapshot.count > 0) {
+        lastActive = now;
+        lastNonZeroSeenAt = now;
+        lastIdleWarningAt = 0;
+        console.log(
+          "[loop] players online. count:",
+          snapshot.count,
+          "resetting idle timer."
+        );
+      }
+    } else {
+      console.log(
+        "[loop] players fetch failed. skipping auto pause decision this cycle."
+      );
+      return;
+    }
+
     if (Date.now() < pauseProtectionUntil) {
       console.log(
-        "[loop] wake protection active. skipping auto pause.",
+        "[loop] wake protection active. auto pause disabled this cycle.",
         "until:",
         new Date(pauseProtectionUntil).toISOString()
       );
       return;
     }
 
-    const players = await getPlayers();
-    const now = Date.now();
-
-    if (players.length > 0) {
-      console.log(
-        "[loop] players online. count:",
-        players.length,
-        "resetting idle timer."
-      );
-      lastActive = now;
+    if (snapshot.count > 0) {
       return;
     }
 
     const idleSeconds = Math.floor((now - lastActive) / 1000);
 
     if (idleSeconds >= AUTO_PAUSE_TIMEOUT) {
+      const verifySnapshot = await getPlayersSnapshot("loop-verify");
+      const verifyNow = Date.now();
+      if (!verifySnapshot.ok) {
+        console.log(
+          "[loop] pre-pause verification failed. skipping auto pause."
+        );
+        return;
+      }
+
+      recordPlayerSample(verifySnapshot.count);
+      if (verifySnapshot.count > 0) {
+        lastActive = verifyNow;
+        lastNonZeroSeenAt = verifyNow;
+      }
+
+      const decision = evaluateAutoPauseDecision({
+        uptimeMs: verifyNow - bootTime,
+        thresholdMs: WAKE_PROTECTION_MINUTES * 60 * 1000,
+        cachedPlayerCount: snapshot.count,
+        refreshedPlayerCount: verifySnapshot.count,
+        recentSamples: recentPlayerCounts,
+        lastNonZeroSeenAt,
+        nowMs: verifyNow,
+        refreshedFetchOk: verifySnapshot.ok,
+        stableZeroRequiredSamples: STABLE_ZERO_REQUIRED_SAMPLES,
+        nonZeroGraceMs: NON_ZERO_GRACE_SECONDS * 1000,
+      });
+
       console.log(
-        "[loop] idle timeout reached. seconds:",
+        "[loop] pause decision:",
+        decision.reason,
+        JSON.stringify(decision.evidence)
+      );
+      if (!decision.shouldPause) {
+        return;
+      }
+
+      console.log(
+        "[loop] idle timeout reached. warning only. seconds:",
         idleSeconds,
         "threshold:",
         AUTO_PAUSE_TIMEOUT
       );
-      try {
-        await docker("docker pause palworld-server");
-        console.log("[loop] auto pause succeeded.");
+      const warningCooldownMs = IDLE_WARNING_COOLDOWN_SECONDS * 1000;
+      if (verifyNow - lastIdleWarningAt >= warningCooldownMs) {
+        lastIdleWarningAt = verifyNow;
         if (botChannel) {
           botChannel.send(
-            `🟡 서버가 자동으로 일시중지되었습니다. (${idleSeconds}초간 접속자 없음)`
-          );
-        }
-      } catch (err) {
-        console.log("[loop] auto pause failed:", err.message);
-        if (botChannel) {
-          botChannel.send(
-            "⚠️ 자동 일시중지에 실패했습니다. 관리자에게 확인이 필요합니다."
+            `⚠️ ${idleSeconds}초 동안 접속자가 없습니다. 자동 일시중지는 비활성화되어 경고만 전송합니다.`
           );
         }
       }
@@ -212,6 +296,7 @@ client.on("messageCreate", async (msg) => {
       console.log("[command] !기동: unpause succeeded.");
 
       lastActive = Date.now();
+      lastIdleWarningAt = 0;
       pauseProtectionUntil =
         Date.now() + WAKE_PROTECTION_MINUTES * 60 * 1000;
 
@@ -246,6 +331,7 @@ client.on("messageCreate", async (msg) => {
       await docker("docker restart palworld-server");
       console.log("[command] !재시작: restart succeeded.");
       lastActive = Date.now();
+      lastIdleWarningAt = 0;
       pauseProtectionUntil =
         Date.now() + WAKE_PROTECTION_MINUTES * 60 * 1000;
       msg.channel.send("🔁 서버 재시작 완료");
