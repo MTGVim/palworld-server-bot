@@ -134,17 +134,27 @@ async function getBotVersionInfo() {
     }
 
     const imageMeta = await dockerWithOutput(
-      `docker image inspect -f '{{.Id}}|{{.Created}}' ${inspectTarget}`
+      `docker image inspect -f '{{.Id}}|{{.Created}}|{{json .Config.Labels}}|{{json .RepoDigests}}' ${inspectTarget}`
     );
-    const [resolvedImageId, createdAt] = imageMeta
+    const [resolvedImageId, createdAt, labelsRaw, repoDigestsRaw] = imageMeta
       .split("|")
       .map((value) => value.trim());
+    const labels = safeJsonParse(labelsRaw, {});
+    const repoDigests = safeJsonParse(repoDigestsRaw, []);
+    const revision = (labels["org.opencontainers.image.revision"] || "").trim();
+    const digestRef = Array.isArray(repoDigests) && repoDigests.length > 0
+      ? String(repoDigests[0]).trim()
+      : "";
+    const commitRef = buildCommitRef(configuredImage, revision);
 
     return {
       ok: true,
       configuredImage: configuredImage || "(unknown)",
       imageId: resolvedImageId || imageId || "(unknown)",
       createdAt: createdAt || "(unknown)",
+      revision: revision || "(unknown)",
+      digestRef: digestRef || "(unknown)",
+      commitRef: commitRef || "(unknown)",
     };
   } catch (err) {
     return {
@@ -163,8 +173,65 @@ function formatVersionMessage(versionInfo) {
     "ℹ️ 봇 버전 정보\n" +
     `- Image: ${versionInfo.configuredImage}\n` +
     `- Image ID: ${versionInfo.imageId}\n` +
-    `- Created: ${versionInfo.createdAt}`
+    `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
+    `- Revision: ${versionInfo.revision}\n` +
+    `- Ref(commit): ${versionInfo.commitRef}\n` +
+    `- Ref(digest): ${versionInfo.digestRef}`
   );
+}
+
+function formatCreatedAtSeoul(createdAt) {
+  if (!createdAt || createdAt === "(unknown)") {
+    return createdAt || "(unknown)";
+  }
+
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) {
+    return createdAt;
+  }
+
+  const formatted = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
+
+  return `${formatted} (Asia/Seoul, +09:00)`;
+}
+
+function safeJsonParse(value, fallback) {
+  if (!value || value === "null" || value === "<no value>") {
+    return fallback;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
+
+function buildCommitRef(configuredImage, revision) {
+  if (!configuredImage || !revision) {
+    return "";
+  }
+
+  if (!/^[a-f0-9]{7,64}$/i.test(revision)) {
+    return "";
+  }
+
+  const withoutDigest = configuredImage.split("@")[0];
+  const lastSlash = withoutDigest.lastIndexOf("/");
+  const lastColon = withoutDigest.lastIndexOf(":");
+  const hasTag = lastColon > lastSlash;
+  const repository = hasTag ? withoutDigest.slice(0, lastColon) : withoutDigest;
+
+  return `${repository}:${revision}`;
 }
 
 function getWatchtowerRunOnceCommand() {
