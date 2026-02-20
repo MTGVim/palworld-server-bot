@@ -18,10 +18,6 @@ const NON_ZERO_GRACE_SECONDS = parseInt(
   process.env.NON_ZERO_GRACE_SECONDS || "20",
   10
 );
-const IDLE_WARNING_COOLDOWN_SECONDS = parseInt(
-  process.env.IDLE_WARNING_COOLDOWN_SECONDS || "300",
-  10
-);
 const PLAYERS_API_TIMEOUT_MS = parseInt(
   process.env.PLAYERS_API_TIMEOUT_MS || "5000",
   10
@@ -34,7 +30,7 @@ let lastActive = Date.now();
 let botChannel = null;
 let lastNonZeroSeenAt = null;
 const recentPlayerCounts = [];
-let lastIdleWarningAt = 0;
+let idleWarningSentSinceStartup = false;
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -202,7 +198,6 @@ setInterval(async () => {
       if (snapshot.count > 0) {
         lastActive = now;
         lastNonZeroSeenAt = now;
-        lastIdleWarningAt = 0;
         console.log(
           "[loop] players online. count:",
           snapshot.count,
@@ -266,14 +261,10 @@ setInterval(async () => {
         "threshold:",
         AUTO_PAUSE_TIMEOUT
       );
-      const warningCooldownMs = IDLE_WARNING_COOLDOWN_SECONDS * 1000;
-      if (verifyNow - lastIdleWarningAt >= warningCooldownMs) {
-        lastIdleWarningAt = verifyNow;
-        if (botChannel) {
-          botChannel.send(
-            `⚠️ ${idleSeconds}초 동안 접속자가 없습니다. 자동 일시중지는 비활성화되어 경고만 전송합니다.`
-          );
-        }
+      if (!idleWarningSentSinceStartup && botChannel) {
+        idleWarningSentSinceStartup = true;
+        const idleMinutes = Math.max(1, Math.floor(idleSeconds / 60));
+        botChannel.send(`⚠️ ${idleMinutes}분동안 접속자가 없습니다.`);
       }
     }
   } catch (err) {
@@ -331,7 +322,7 @@ client.on("messageCreate", async (msg) => {
       console.log("[command] !기동: unpause succeeded.");
 
       lastActive = Date.now();
-      lastIdleWarningAt = 0;
+      idleWarningSentSinceStartup = false;
 
       msg.channel.send("🟢 서버 기동 완료.");
     } catch (err) {
@@ -362,7 +353,7 @@ client.on("messageCreate", async (msg) => {
       await docker("docker restart palworld-server");
       console.log("[command] !재시작: restart succeeded.");
       lastActive = Date.now();
-      lastIdleWarningAt = 0;
+      idleWarningSentSinceStartup = false;
       msg.channel.send("🔁 서버 재시작 완료");
     } catch (err) {
       console.log("[command] !재시작: restart failed:", err.message);

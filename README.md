@@ -30,7 +30,6 @@
 - **PLAYERS_API_TIMEOUT_MS**: 접속자 API 타임아웃(ms). 기본값 `5000`
 - **STABLE_ZERO_REQUIRED_SAMPLES**: 유휴 상태로 판단하기 위한 연속 0명 샘플 수. 기본값 `2`
 - **NON_ZERO_GRACE_SECONDS**: 최근 접속자가 있었으면 경고를 보류하는 grace 시간(초). 기본값 `20`
-- **IDLE_WARNING_COOLDOWN_SECONDS**: 유휴 경고 재전송 최소 간격(초). 기본값 `300`
 
 `docker-compose.yml` 사용 시 `SERVER_URL`, `ADMIN_PASSWORD`를 추가로 설정해야 `!상태`, `!접속자` 명령이 동작합니다.
 RCON 관련 변수는 선택적으로 설정할 수 있습니다.
@@ -78,7 +77,8 @@ docker run --rm \
 `docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker unpause/pause/restart` 명령으로
 `palworld-server` 컨테이너를 제어하도록 구성되어 있습니다.
 
-자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 경고 메시지만 전송합니다.
+자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 `⚠️ N분동안 접속자가 없습니다.` 경고를 1회만 전송합니다.
+경고는 `!기동`으로 서버를 다시 기동하면 초기화됩니다.
 
 ---
 
