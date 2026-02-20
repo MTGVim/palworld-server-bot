@@ -162,7 +162,10 @@ async function getBotVersionInfo() {
       .map((value) => value.trim());
     const labels = safeJsonParse(labelsRaw, {});
     const repoDigests = safeJsonParse(repoDigestsRaw, []);
-    const revision = (labels["org.opencontainers.image.revision"] || "").trim();
+    const labeledRevision = (
+      labels["org.opencontainers.image.revision"] || ""
+    ).trim();
+    const revision = labeledRevision || extractRevisionFromImageRef(configuredImage);
     const digestRef = Array.isArray(repoDigests) && repoDigests.length > 0
       ? String(repoDigests[0]).trim()
       : "";
@@ -253,6 +256,27 @@ function buildCommitRef(configuredImage, revision) {
   const repository = hasTag ? withoutDigest.slice(0, lastColon) : withoutDigest;
 
   return `${repository}:${revision}`;
+}
+
+function extractRevisionFromImageRef(imageRef) {
+  if (!imageRef) {
+    return "";
+  }
+
+  const withoutDigest = String(imageRef).split("@")[0];
+  const lastSlash = withoutDigest.lastIndexOf("/");
+  const lastColon = withoutDigest.lastIndexOf(":");
+  const hasTag = lastColon > lastSlash;
+  if (!hasTag) {
+    return "";
+  }
+
+  const tag = withoutDigest.slice(lastColon + 1).trim();
+  if (!/^[a-f0-9]{7,64}$/i.test(tag)) {
+    return "";
+  }
+
+  return tag;
 }
 
 function getWatchtowerRunOnceCommand() {
@@ -570,7 +594,7 @@ client.on("messageCreate", async (msg) => {
 
     updateInProgress = true;
     await msg.reply(
-      "🔄 봇 이미지 업데이트 확인을 시작합니다. 완료 전에 봇이 재시작될 수 있습니다."
+      "🔄 봇 이미지 업데이트 확인을 시작합니다.\n완료 전에 봇이 재시작될 수 있습니다."
     );
 
     try {

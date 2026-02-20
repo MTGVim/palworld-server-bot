@@ -49,6 +49,8 @@ RCON 관련 변수는 선택적으로 설정할 수 있습니다.
 
 운영 이미지는 GitHub Container Registry(`ghcr.io/mtgvim/palworld-server-bot:latest`)를 사용합니다.
 이 저장소에서는 CI/CD로 이미지가 빌드/배포됩니다.
+CI에서 OCI revision 라벨(`org.opencontainers.image.revision`)을 이미지에 포함하므로, 새로 배포된 이미지부터 `!봇 버전`의 `Revision`/`Ref(commit)` 값이 표시됩니다.
+과거 이미지나 라벨이 없는 이미지는 해당 값이 `(unknown)`으로 표시될 수 있습니다.
 
 `!봇 업데이트` 명령은 상시 Watchtower 컨테이너를 띄우지 않고, 필요 시 `docker run ... watchtower --run-once --label-enable`를 1회 실행해
 Watchtower 라벨이 켜진 컨테이너만 업데이트를 확인/적용합니다.
