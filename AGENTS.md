@@ -48,3 +48,17 @@ Follow level-appropriate response formatting:
 
 - Any functional/configuration change must also review and update both `docker-compose.yml` and `README.md` in the same task.
 - Do not finish a task until deployment/runtime env examples (`docker-compose.yml`) and user-facing docs (`README.md`) are consistent with the latest code behavior.
+
+## Commit Message Rule (Mandatory)
+
+- Always use Conventional Commits format: `type(scope): summary`
+- Allowed `type`: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `ci`, `build`, `perf`, `revert`
+- Use lowercase English for `type`/`scope`
+- Keep summary concise, imperative, and <= 72 chars
+- Do not use emoji prefixes in commit messages
+- If `docker-compose.yml` or runtime/env behavior changes, mention it explicitly in commit summary
+
+Examples:
+- `feat(bot): add on-demand watchtower run-once update command`
+- `fix(players): prevent false idle warning when active users exist`
+- `docs(readme): sync env vars with docker-compose`
