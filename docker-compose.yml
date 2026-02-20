@@ -3,9 +3,32 @@ services:
     image: ghcr.io/mtgvim/palworld-server-bot:latest
     restart: unless-stopped
     environment:
-      DISCORD_BOT_TOKEN: "여기에_봇토큰"
+      DISCORD_BOT_TOKEN: "여기에_봇_토큰"
+      SERVER_URL: "http://172.17.0.1:8212"
+      ADMIN_PASSWORD: "여기에_관리자_비밀번호"
+
+      # 플레이어 조회/유휴 경고 설정
+      AUTO_PAUSE_TIMEOUT: "300"
+      CHECK_INTERVAL: "10000"
+      PLAYERS_API_TIMEOUT_MS: "5000"
+      STABLE_ZERO_REQUIRED_SAMPLES: "2"
+      NON_ZERO_GRACE_SECONDS: "20"
+      IDLE_WARNING_COOLDOWN_SECONDS: "300"
+
+      # !업데이트 권한/동작 설정
+      UPDATE_ALLOWED_USER_IDS: "여기에_디스코드_유저_ID"
+      UPDATE_ALLOWED_ROLE_IDS: ""
+      UPDATE_DELAY_SECONDS: "60"
+      UPDATE_COMPOSE_FILE: "/app/docker-compose.yml"
+      UPDATE_SERVICE_NAME: "palbot"
+
+      # 선택: !버전 표시용 (CI에서 자동 주입하면 생략 가능)
+      BUILD_COMMIT_AT: "unknown"
+
+      # 선택: RCON 관련
       RCON_HOST: 172.17.0.1
       RCON_PORT: "25575"
-      RCON_PASSWORD: "여기에_rcon비번"
+      RCON_PASSWORD: "여기에_RCON_비밀번호"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./docker-compose.yml:/app/docker-compose.yml:ro
