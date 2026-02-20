@@ -19,6 +19,7 @@ services:
       UPDATE_ALLOWED_USER_IDS: "여기에_디스코드_유저_ID"
       UPDATE_ALLOWED_ROLE_IDS: ""
       UPDATE_DELAY_SECONDS: "60"
+      UPDATE_TARGET_LABEL: "palworld-server-bot"
       UPDATE_COMPOSE_FILE: "/app/docker-compose.yml"
       UPDATE_SERVICE_NAME: "palbot"
 

@@ -30,6 +30,7 @@ const UPDATE_DELAY_SECONDS = parseInt(
   process.env.UPDATE_DELAY_SECONDS || "60",
   10
 );
+const UPDATE_TARGET_LABEL = process.env.UPDATE_TARGET_LABEL || "palworld-server-bot";
 const UPDATE_COMPOSE_FILE = process.env.UPDATE_COMPOSE_FILE || "docker-compose.yml";
 const UPDATE_SERVICE_NAME = process.env.UPDATE_SERVICE_NAME || "palbot";
 const UPDATE_ALLOWED_USER_IDS = new Set(
@@ -113,7 +114,7 @@ async function runSelfUpdate(channel) {
   const serviceName = shellQuote(UPDATE_SERVICE_NAME);
 
   await channel.send(
-    `🔄 업데이트 시작: service=\`${UPDATE_SERVICE_NAME}\`, compose=\`${UPDATE_COMPOSE_FILE}\``
+    `🔄 업데이트 시작: target=\`${UPDATE_TARGET_LABEL}\`, service=\`${UPDATE_SERVICE_NAME}\`, compose=\`${UPDATE_COMPOSE_FILE}\``
   );
 
   await executeShell("docker compose version");
@@ -473,7 +474,7 @@ client.on("messageCreate", async (msg) => {
     };
 
     return msg.reply(
-      `🕒 업데이트를 ${UPDATE_DELAY_SECONDS}초 후 실행하도록 예약했습니다. 취소: !업데이트취소`
+      `🕒 \`${UPDATE_TARGET_LABEL}\` 업데이트를 ${UPDATE_DELAY_SECONDS}초 후 실행하도록 예약했습니다. 취소: !업데이트취소`
     );
   }
 
