@@ -567,11 +567,15 @@ client.on("messageCreate", async (msg) => {
     `${msg.author.username}#${msg.author.discriminator}`
   );
 
-  if (content === "!도움") {
+  if (content === "!명령어") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!봇 버전\n!봇 업데이트"
+        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!봇 버전\n!봇 업데이트"
     );
+  }
+
+  if (content === "!도움") {
+    return msg.reply('⚠️ !도움(deprecated). "!명령어"를 사용하세요.');
   }
 
   if (content === "!봇 버전" || content === "!봇버전") {

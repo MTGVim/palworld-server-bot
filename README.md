@@ -84,7 +84,8 @@ docker run --rm \
 
 ## 디스코드 명령어
 
-- `!도움`       : 사용 가능한 명령어 목록 출력
+- `!명령어`     : 사용 가능한 명령어 목록 출력
+- `!도움`       : deprecated. `"!명령어"` 사용 안내만 출력
 - `!기동`       : `docker unpause palworld-server`
 - `!일시중지`   : `docker pause palworld-server`
 - `!재시작`     : `docker restart palworld-server`
