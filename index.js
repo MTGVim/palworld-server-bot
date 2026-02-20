@@ -361,6 +361,19 @@ function evaluateRps(userChoice, botChoice) {
   return "패배";
 }
 
+function rpsChoiceEmoji(choice) {
+  if (choice === "가위") return "✌️";
+  if (choice === "바위") return "✊";
+  if (choice === "보") return "✋";
+  return "❓";
+}
+
+function rpsResultEmoji(result) {
+  if (result === "승리") return "💃";
+  if (result === "패배") return "🥹";
+  return "🤝";
+}
+
 async function ensureRpsStatsLoaded() {
   if (rpsStatsLoaded) {
     return;
@@ -870,7 +883,7 @@ client.on("messageCreate", async (msg) => {
     const result = evaluateRps(userChoice, botChoice);
     const record = await updateRpsStatsForUser(msg.author.id, result);
     return msg.reply(
-      `✊ 가위바위보\n- 당신: ${userChoice}\n- 봇: ${botChoice}\n- 결과: ${result}\n- 누적: ${formatRpsRecord(record)}`
+      `✊ 가위바위보\n${rpsChoiceEmoji(userChoice)} 당신 vs ${rpsChoiceEmoji(botChoice)} 봇 = ${rpsResultEmoji(result)} ${result}\n- 누적: ${formatRpsRecord(record)}`
     );
   }
 
