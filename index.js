@@ -30,6 +30,7 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
   .filter(Boolean);
 const STATUS_CHANNEL_ID = (process.env.STATUS_CHANNEL_ID || "").trim();
 const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
+const BOT_IMAGE_REF = (process.env.BOT_IMAGE_REF || "ghcr.io/mtgvim/palworld-server-bot:latest").trim();
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -110,20 +111,29 @@ function isAuthorizedUpdater(userId) {
 
 async function getBotVersionInfo() {
   const containerId = (process.env.HOSTNAME || "").trim();
-  if (!containerId || !isSafeDockerRef(containerId)) {
-    return {
-      ok: false,
-      message: "컨테이너 식별자를 확인할 수 없어 버전 정보를 조회하지 못했습니다.",
-    };
-  }
-
   try {
-    const imagePair = await dockerWithOutput(
-      `docker inspect -f '{{.Config.Image}}|{{.Image}}' ${containerId}`
-    );
-    const [configuredImage, imageId] = imagePair
-      .split("|")
-      .map((value) => value.trim());
+    let configuredImage = "";
+    let imageId = "";
+
+    if (containerId && isSafeDockerRef(containerId)) {
+      try {
+        const imagePair = await dockerWithOutput(
+          `docker inspect -f '{{.Config.Image}}|{{.Image}}' ${containerId}`
+        );
+        [configuredImage, imageId] = imagePair
+          .split("|")
+          .map((value) => value.trim());
+      } catch (err) {
+        console.log(
+          "[version] self container inspect failed, fallback to BOT_IMAGE_REF:",
+          err.message
+        );
+      }
+    }
+
+    if (!configuredImage && isSafeDockerRef(BOT_IMAGE_REF)) {
+      configuredImage = BOT_IMAGE_REF;
+    }
 
     const inspectTarget = imageId || configuredImage;
     if (!inspectTarget || !isSafeDockerRef(inspectTarget)) {
@@ -133,9 +143,20 @@ async function getBotVersionInfo() {
       };
     }
 
-    const imageMeta = await dockerWithOutput(
-      `docker image inspect -f '{{.Id}}|{{.Created}}|{{json .Config.Labels}}|{{json .RepoDigests}}' ${inspectTarget}`
-    );
+    let imageMeta;
+    try {
+      imageMeta = await dockerWithOutput(
+        `docker image inspect -f '{{.Id}}|{{.Created}}|{{json .Config.Labels}}|{{json .RepoDigests}}' ${inspectTarget}`
+      );
+    } catch (err) {
+      if (!configuredImage || inspectTarget === configuredImage) {
+        throw err;
+      }
+
+      imageMeta = await dockerWithOutput(
+        `docker image inspect -f '{{.Id}}|{{.Created}}|{{json .Config.Labels}}|{{json .RepoDigests}}' ${configuredImage}`
+      );
+    }
     const [resolvedImageId, createdAt, labelsRaw, repoDigestsRaw] = imageMeta
       .split("|")
       .map((value) => value.trim());

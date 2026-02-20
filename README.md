@@ -29,6 +29,7 @@
 - **BOT_UPDATE_ENABLED**: 봇 업데이트 명령 활성화 여부 (`true`/`false`, 기본 `false`)
 - **STATUS_CHANNEL_ID**: 봇 ready 시 버전 정보를 보낼 Discord 채널 ID (선택)
 - **WATCHTOWER_IMAGE**: 1회 업데이트 실행 시 사용할 Watchtower 이미지 (기본 `containrrr/watchtower:latest`)
+- **BOT_IMAGE_REF**: `!봇 버전` 조회 시 기본 대상 이미지 ref (기본 `ghcr.io/mtgvim/palworld-server-bot:latest`)
 - **AUTO_PAUSE_TIMEOUT**: 유휴 경고 기준 시간(초). 기본값 `300`
 - **CHECK_INTERVAL**: 접속자 체크 주기(ms). 기본값 `10000`
 - **PLAYERS_API_TIMEOUT_MS**: 접속자 API 타임아웃(ms). 기본값 `5000`

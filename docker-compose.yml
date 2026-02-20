@@ -10,6 +10,7 @@ services:
       BOT_UPDATE_ENABLED: "true"
       STATUS_CHANNEL_ID: ""
       WATCHTOWER_IMAGE: "containrrr/watchtower:latest"
+      BOT_IMAGE_REF: "ghcr.io/mtgvim/palworld-server-bot:latest"
 
       # 플레이어 조회/유휴 경고 설정
       AUTO_PAUSE_TIMEOUT: "300"
