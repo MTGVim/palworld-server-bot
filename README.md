@@ -31,6 +31,7 @@
 - **STABLE_ZERO_REQUIRED_SAMPLES**: 유휴 상태로 판단하기 위한 연속 0명 샘플 수. 기본값 `2`
 - **NON_ZERO_GRACE_SECONDS**: 최근 접속자가 있었으면 경고를 보류하는 grace 시간(초). 기본값 `20`
 - **IDLE_WARNING_COOLDOWN_SECONDS**: 유휴 경고 재전송 최소 간격(초). 기본값 `300`
+- **BUILD_COMMIT_AT**: 빌드된 커밋 시각(ISO-8601). `!버전`과 기동 로그에 표시됨. `build.sh` 사용 시 자동 주입
 
 `docker-compose.yml` 사용 시 `SERVER_URL`, `ADMIN_PASSWORD`를 추가로 설정해야 `!상태`, `!접속자` 명령이 동작합니다.
 RCON 관련 변수는 선택적으로 설정할 수 있습니다.
@@ -90,3 +91,4 @@ docker run --rm \
 - `!재시작`     : `docker restart palworld-server`
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
+- `!버전`       : 현재 봇 버전 및 빌드 커밋 시각 표시

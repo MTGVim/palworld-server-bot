@@ -1,5 +1,6 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
+const packageJson = require("./package.json");
 const { evaluateAutoPauseDecision } = require("./pause-decision-guard");
 
 const bootTime = Date.now();
@@ -26,6 +27,7 @@ const IDLE_WARNING_COOLDOWN_SECONDS = parseInt(
   process.env.IDLE_WARNING_COOLDOWN_SECONDS || "300",
   10
 );
+const BUILD_COMMIT_AT = process.env.BUILD_COMMIT_AT || "unknown";
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -36,6 +38,10 @@ let botChannel = null;
 let lastNonZeroSeenAt = null;
 const recentPlayerCounts = [];
 let lastIdleWarningAt = 0;
+
+function getVersionInfo() {
+  return `v${packageJson.version} | commitAt: ${BUILD_COMMIT_AT}`;
+}
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -258,6 +264,7 @@ const client = new Client({
 
 client.on("clientReady", () => {
   console.log("봇 준비 완료");
+  console.log("[version]", getVersionInfo());
 });
 
 client.on("error", (err) => {
@@ -279,8 +286,12 @@ client.on("messageCreate", async (msg) => {
   if (msg.content === "!도움") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!기동\n!일시중지\n!재시작\n!상태\n!접속자"
+        "!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!버전"
     );
+  }
+
+  if (msg.content === "!버전") {
+    msg.reply(`🏷️ ${getVersionInfo()}`);
   }
 
   if (msg.content === "!기동") {
