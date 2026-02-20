@@ -43,3 +43,42 @@ jobs:
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:latest
             ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}
+
+      - name: Verify GHCR tag propagation (retry up to 30s)
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}"
+          for i in {1..6}; do
+            if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+              echo "Verified: $IMAGE"
+              exit 0
+            fi
+            echo "[$i/6] Not visible yet. Retrying in 5s..."
+            sleep 5
+          done
+          echo "Failed to verify image visibility within 30 seconds: $IMAGE"
+          exit 1
+
+      - name: Notify Discord (success)
+        if: ${{ success() && secrets.DISCORD_WEBHOOK_URL != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          MSG="✅ GHCR 이미지 업로드 확인 완료\n- Repo: ${{ github.repository }}\n- Commit: ${SHORT_SHA}\n- Image: ${IMAGE}"
+          curl -sS -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg content "$MSG" '{content:$content}')"
+
+      - name: Notify Discord (failure)
+        if: ${{ failure() && secrets.DISCORD_WEBHOOK_URL != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${GITHUB_SHA::7}"
+          MSG="❌ GHCR 이미지 업로드 확인 실패\n- Repo: ${{ github.repository }}\n- Commit: ${SHORT_SHA}\n- Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sS -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg content "$MSG" '{content:$content}')"
