@@ -22,9 +22,6 @@ services:
       UPDATE_COMPOSE_FILE: "/app/docker-compose.yml"
       UPDATE_SERVICE_NAME: "palbot"
 
-      # 선택: !버전 표시용 (CI에서 자동 주입하면 생략 가능)
-      BUILD_COMMIT_AT: "unknown"
-
       # 선택: RCON 관련
       RCON_HOST: 172.17.0.1
       RCON_PORT: "25575"

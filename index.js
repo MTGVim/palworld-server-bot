@@ -1,6 +1,5 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
-const packageJson = require("./package.json");
 const { evaluateAutoPauseDecision } = require("./pause-decision-guard");
 
 const bootTime = Date.now();
@@ -27,7 +26,6 @@ const PLAYERS_API_TIMEOUT_MS = parseInt(
   process.env.PLAYERS_API_TIMEOUT_MS || "5000",
   10
 );
-const BUILD_COMMIT_AT = process.env.BUILD_COMMIT_AT || "unknown";
 const UPDATE_DELAY_SECONDS = parseInt(
   process.env.UPDATE_DELAY_SECONDS || "60",
   10
@@ -56,10 +54,6 @@ let lastNonZeroSeenAt = null;
 const recentPlayerCounts = [];
 let lastIdleWarningAt = 0;
 let pendingUpdateJob = null;
-
-function getVersionInfo() {
-  return `v${packageJson.version} | commitAt: ${BUILD_COMMIT_AT}`;
-}
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
@@ -401,7 +395,6 @@ const client = new Client({
 
 client.on("clientReady", () => {
   console.log("봇 준비 완료");
-  console.log("[version]", getVersionInfo());
 });
 
 client.on("error", (err) => {
@@ -424,12 +417,8 @@ client.on("messageCreate", async (msg) => {
   if (content === "!도움") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!버전\n!업데이트\n!업데이트취소"
+        "!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!업데이트\n!업데이트취소"
     );
-  }
-
-  if (content === "!버전") {
-    msg.reply(`🏷️ ${getVersionInfo()}`);
   }
 
   if (content === "!업데이트취소" || content === "!업데이트 취소") {
