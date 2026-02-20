@@ -27,11 +27,15 @@
 - **ADMIN_PASSWORD**: 관리자 비밀번호 (HTTP Basic Auth용)
 - **AUTO_PAUSE_TIMEOUT**: 유휴 경고 기준 시간(초). 기본값 `300`
 - **CHECK_INTERVAL**: 접속자 체크 주기(ms). 기본값 `10000`
-- **WAKE_PROTECTION_MINUTES**: 기동 후 유휴 경고 보호 시간(분). 기본값 `30`
 - **STABLE_ZERO_REQUIRED_SAMPLES**: 유휴 상태로 판단하기 위한 연속 0명 샘플 수. 기본값 `2`
 - **NON_ZERO_GRACE_SECONDS**: 최근 접속자가 있었으면 경고를 보류하는 grace 시간(초). 기본값 `20`
 - **IDLE_WARNING_COOLDOWN_SECONDS**: 유휴 경고 재전송 최소 간격(초). 기본값 `300`
 - **BUILD_COMMIT_AT**: 빌드된 커밋 시각(ISO-8601). `!버전`과 기동 로그에 표시됨. `build.sh` 사용 시 자동 주입
+- **UPDATE_ALLOWED_USER_IDS**: `!업데이트` 권한 허용 Discord 사용자 ID 목록(쉼표 구분). 미설정 시 업데이트 명령 비활성
+- **UPDATE_ALLOWED_ROLE_IDS**: `!업데이트` 권한 허용 Discord 역할 ID 목록(쉼표 구분, 선택)
+- **UPDATE_DELAY_SECONDS**: `!업데이트` 실행 지연 시간(초). 기본값 `60`
+- **UPDATE_COMPOSE_FILE**: 컨테이너 내부에서 접근 가능한 compose 파일 경로. 기본값 `docker-compose.yml`
+- **UPDATE_SERVICE_NAME**: `docker compose pull/up` 대상 서비스명. 기본값 `palbot`
 
 `docker-compose.yml` 사용 시 `SERVER_URL`, `ADMIN_PASSWORD`를 추가로 설정해야 `!상태`, `!접속자` 명령이 동작합니다.
 RCON 관련 변수는 선택적으로 설정할 수 있습니다.
@@ -81,6 +85,9 @@ docker run --rm \
 
 자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 경고 메시지만 전송합니다.
 
+`!업데이트`를 사용하려면 봇 컨테이너 내부에서 `UPDATE_COMPOSE_FILE` 경로를 읽을 수 있어야 합니다.
+필요하면 compose 파일을 볼륨으로 마운트하세요.
+
 ---
 
 ## 디스코드 명령어
@@ -92,3 +99,5 @@ docker run --rm \
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
 - `!버전`       : 현재 봇 버전 및 빌드 커밋 시각 표시
+- `!업데이트`   : 권한 사용자만 가능. 지연 후 `compose pull` + `up --force-recreate` 실행
+- `!업데이트취소`: 예약된 업데이트 취소
