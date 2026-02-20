@@ -14,6 +14,7 @@
 - Docker 데몬이 동작 중일 것
 - Node.js 20 (이미지는 `node:20-alpine` 사용)
 - Discord 봇 토큰
+- Discord Developer Portal에서 `SERVER MEMBERS INTENT`, `PRESENCE INTENT` 활성화 (`!추첨`용)
 - 팔월드 서버 관리자 API가 활성화된 컨테이너 (`palworld-server`)
 
 ---
@@ -91,5 +92,6 @@ docker run --rm \
 - `!재시작`     : `docker restart palworld-server`
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
+- `!추첨 [N]`   : 온라인 Discord 유저(봇 제외) 중 1명 또는 N명 랜덤 추첨
 - `!봇 버전`    : 현재 실행 중인 봇 이미지 정보(이미지명/sha/생성시각, Asia/Seoul +09:00 기준) 조회
 - `!봇 업데이트`: Watchtower 1회 실행으로 라벨 대상 컨테이너 업데이트 확인/적용 (관리자 전용)

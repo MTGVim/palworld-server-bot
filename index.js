@@ -279,6 +279,48 @@ function extractRevisionFromImageRef(imageRef) {
   return tag;
 }
 
+async function getOnlineHumanMembers(guild) {
+  if (!guild) {
+    return {
+      ok: false,
+      message: "⚠️ 이 명령은 서버(길드) 채널에서만 사용할 수 있습니다.",
+      members: [],
+    };
+  }
+
+  try {
+    await guild.members.fetch({ withPresences: true });
+  } catch (err) {
+    console.log("[raffle] failed to fetch guild members/presences:", err.message);
+  }
+
+  const members = guild.members.cache.filter((member) => {
+    if (!member || member.user.bot) return false;
+    const status = member.presence && member.presence.status;
+    return Boolean(status) && status !== "offline";
+  });
+
+  if (members.size === 0) {
+    return {
+      ok: false,
+      message:
+        "⚠️ 온라인 유저를 찾지 못했습니다. 서버 멤버 프레즌스 인텐트(Guild Presences)를 켜고, 현재 온라인 멤버가 있는지 확인해주세요.",
+      members: [],
+    };
+  }
+
+  return { ok: true, members: Array.from(members.values()) };
+}
+
+function pickRandomMembers(members, count) {
+  const pool = members.slice();
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
+
 function getWatchtowerRunOnceCommand() {
   if (!isSafeDockerRef(WATCHTOWER_IMAGE)) {
     throw new Error(
@@ -523,6 +565,8 @@ setInterval(async () => {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildPresences,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
@@ -570,7 +614,7 @@ client.on("messageCreate", async (msg) => {
   if (content === "!명령어") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!봇 버전\n!봇 업데이트"
+        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!봇 버전\n!봇 업데이트"
     );
   }
 
@@ -617,6 +661,37 @@ client.on("messageCreate", async (msg) => {
     } finally {
       updateInProgress = false;
     }
+  }
+
+  const raffleMatch = content.match(/^!추첨(?:\s+(\d+))?$/);
+  if (raffleMatch) {
+    const requestedCount = raffleMatch[1] ? parseInt(raffleMatch[1], 10) : 1;
+    if (!Number.isInteger(requestedCount) || requestedCount <= 0) {
+      return msg.reply('⚠️ 사용법: `!추첨` 또는 `!추첨 N` (N은 1 이상의 정수)');
+    }
+
+    const onlineResult = await getOnlineHumanMembers(msg.guild);
+    if (!onlineResult.ok) {
+      return msg.reply(onlineResult.message);
+    }
+
+    const onlineMembers = onlineResult.members;
+    if (requestedCount > onlineMembers.length) {
+      return msg.reply(
+        `⚠️ 온라인 유저는 ${onlineMembers.length}명입니다. \`!추첨 ${onlineMembers.length}\` 이하로 입력해주세요.`
+      );
+    }
+
+    const winners = pickRandomMembers(onlineMembers, requestedCount);
+    const mentions = winners.map((member) => `<@${member.id}>`).join(", ");
+
+    if (requestedCount === 1) {
+      return msg.reply(`🎉 추첨 결과: ${mentions}`);
+    }
+
+    return msg.reply(
+      `🎉 추첨 결과 (${requestedCount}명 / 온라인 ${onlineMembers.length}명)\n${mentions}`
+    );
   }
 
   if (content === "!기동") {
