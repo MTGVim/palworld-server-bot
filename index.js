@@ -218,7 +218,7 @@ function formatBootVersionMessage(versionInfo) {
   }
 
   return (
-    "ℹ️ 봇 버전 정보(부팅)\n" +
+    "ℹ️ 봇이 재시작되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${versionInfo.revision}`
   );
