@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# docker CLI + compose plugin 필요
-RUN apk add --no-cache docker-cli docker-cli-compose
+# docker CLI 필요
+RUN apk add --no-cache docker-cli
 
 COPY package.json yarn.lock ./
 RUN yarn install --production

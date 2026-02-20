@@ -26,25 +26,6 @@ const PLAYERS_API_TIMEOUT_MS = parseInt(
   process.env.PLAYERS_API_TIMEOUT_MS || "5000",
   10
 );
-const UPDATE_DELAY_SECONDS = parseInt(
-  process.env.UPDATE_DELAY_SECONDS || "60",
-  10
-);
-const UPDATE_TARGET_LABEL = process.env.UPDATE_TARGET_LABEL || "palworld-server-bot";
-const UPDATE_COMPOSE_FILE = process.env.UPDATE_COMPOSE_FILE || "docker-compose.yml";
-const UPDATE_SERVICE_NAME = process.env.UPDATE_SERVICE_NAME || "palbot";
-const UPDATE_ALLOWED_USER_IDS = new Set(
-  (process.env.UPDATE_ALLOWED_USER_IDS || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-);
-const UPDATE_ALLOWED_ROLE_IDS = new Set(
-  (process.env.UPDATE_ALLOWED_ROLE_IDS || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-);
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -54,91 +35,6 @@ let botChannel = null;
 let lastNonZeroSeenAt = null;
 const recentPlayerCounts = [];
 let lastIdleWarningAt = 0;
-let pendingUpdateJob = null;
-
-function shellQuote(value) {
-  return `'${String(value).replace(/'/g, `'\\''`)}'`;
-}
-
-function executeShell(cmd, timeout = 120000) {
-  console.log("[shell] executing command:", cmd);
-  return new Promise((resolve, reject) => {
-    exec(
-      cmd,
-      { timeout, maxBuffer: 1024 * 1024 },
-      (err, stdout, stderr) => {
-        if (err) {
-          err.stdout = stdout || "";
-          err.stderr = stderr || "";
-          console.log("[shell] command failed:", err.message);
-          return reject(err);
-        }
-        resolve({ stdout: stdout || "", stderr: stderr || "" });
-      }
-    );
-  });
-}
-
-function hasUpdatePermission(msg) {
-  const hasUserPolicy = UPDATE_ALLOWED_USER_IDS.size > 0;
-  const hasRolePolicy = UPDATE_ALLOWED_ROLE_IDS.size > 0;
-  if (!hasUserPolicy && !hasRolePolicy) {
-    return false;
-  }
-
-  if (UPDATE_ALLOWED_USER_IDS.has(msg.author.id)) {
-    return true;
-  }
-
-  if (hasRolePolicy && msg.member && msg.member.roles && msg.member.roles.cache) {
-    for (const roleId of UPDATE_ALLOWED_ROLE_IDS) {
-      if (msg.member.roles.cache.has(roleId)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-function summarizeExecError(err) {
-  const lines = [err.message || "unknown error"];
-  if (err.stderr) {
-    lines.push(err.stderr.trim().split("\n").slice(-2).join(" | "));
-  }
-  return lines.filter(Boolean).join(" / ");
-}
-
-async function runSelfUpdate(channel) {
-  const composeFile = shellQuote(UPDATE_COMPOSE_FILE);
-  const serviceName = shellQuote(UPDATE_SERVICE_NAME);
-
-  await channel.send(
-    `🔄 업데이트 시작: target=\`${UPDATE_TARGET_LABEL}\`, service=\`${UPDATE_SERVICE_NAME}\`, compose=\`${UPDATE_COMPOSE_FILE}\``
-  );
-
-  await executeShell("docker compose version");
-  await executeShell(`test -f ${composeFile}`);
-  const servicesOut = await executeShell(
-    `docker compose -f ${composeFile} config --services`
-  );
-  const services = servicesOut.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  if (!services.includes(UPDATE_SERVICE_NAME)) {
-    throw new Error(
-      `service not found in compose file: ${UPDATE_SERVICE_NAME} (services=${services.join(",")})`
-    );
-  }
-
-  await executeShell(`docker compose -f ${composeFile} pull ${serviceName}`);
-  await channel.send("📦 pull 완료. 5초 후 recreate를 시작합니다.");
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-  await executeShell(
-    `docker compose -f ${composeFile} up -d --force-recreate ${serviceName}`
-  );
-}
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -418,63 +314,7 @@ client.on("messageCreate", async (msg) => {
   if (content === "!도움") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!업데이트\n!업데이트취소"
-    );
-  }
-
-  if (content === "!업데이트취소" || content === "!업데이트 취소") {
-    if (!hasUpdatePermission(msg)) {
-      return msg.reply("⛔ 업데이트 권한이 없습니다.");
-    }
-    if (!pendingUpdateJob) {
-      return msg.reply("ℹ️ 예약된 업데이트가 없습니다.");
-    }
-    clearTimeout(pendingUpdateJob.timerId);
-    const canceledBy = pendingUpdateJob.requestedBy;
-    pendingUpdateJob = null;
-    return msg.reply(`🛑 업데이트 예약이 취소되었습니다. (요청자: <@${canceledBy}>)`);
-  }
-
-  if (content === "!업데이트") {
-    if (!hasUpdatePermission(msg)) {
-      return msg.reply(
-        "⛔ 업데이트 권한이 없습니다. UPDATE_ALLOWED_USER_IDS 또는 UPDATE_ALLOWED_ROLE_IDS를 설정하세요."
-      );
-    }
-
-    if (pendingUpdateJob) {
-      const remainSeconds = Math.max(
-        0,
-        Math.ceil((pendingUpdateJob.executeAt - Date.now()) / 1000)
-      );
-      return msg.reply(
-        `⏳ 이미 업데이트가 예약되어 있습니다. ${remainSeconds}초 후 실행 예정`
-      );
-    }
-
-    const executeAt = Date.now() + UPDATE_DELAY_SECONDS * 1000;
-    const timerId = setTimeout(async () => {
-      const job = pendingUpdateJob;
-      pendingUpdateJob = null;
-      if (!job) return;
-
-      try {
-        await runSelfUpdate(job.channel);
-        await job.channel.send("✅ 업데이트 명령 실행 완료. 봇 재기동을 확인하세요.");
-      } catch (err) {
-        await job.channel.send(`❌ 업데이트 실패: ${summarizeExecError(err)}`);
-      }
-    }, UPDATE_DELAY_SECONDS * 1000);
-
-    pendingUpdateJob = {
-      timerId,
-      executeAt,
-      requestedBy: msg.author.id,
-      channel: msg.channel,
-    };
-
-    return msg.reply(
-      `🕒 \`${UPDATE_TARGET_LABEL}\` 업데이트를 ${UPDATE_DELAY_SECONDS}초 후 실행하도록 예약했습니다. 취소: !업데이트취소`
+        "!기동\n!일시중지\n!재시작\n!상태\n!접속자"
     );
   }
 
