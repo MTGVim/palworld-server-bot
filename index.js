@@ -22,6 +22,14 @@ const PLAYERS_API_TIMEOUT_MS = parseInt(
   process.env.PLAYERS_API_TIMEOUT_MS || "5000",
   10
 );
+const BOT_UPDATE_ENABLED =
+  String(process.env.BOT_UPDATE_ENABLED || "false").toLowerCase() === "true";
+const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
+  .split(",")
+  .map((value) => value.trim())
+  .filter(Boolean);
+const STATUS_CHANNEL_ID = (process.env.STATUS_CHANNEL_ID || "").trim();
+const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -31,6 +39,7 @@ let botChannel = null;
 let lastNonZeroSeenAt = null;
 const recentPlayerCounts = [];
 let idleWarningSentSinceStartup = false;
+let updateInProgress = false;
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -45,6 +54,132 @@ function docker(cmd) {
       }
     });
   });
+}
+
+function dockerWithOutput(cmd) {
+  console.log("[docker] executing command with output:", cmd);
+  return new Promise((resolve, reject) => {
+    exec(cmd, (err, stdout, stderr) => {
+      if (err) {
+        console.log(
+          "[docker] command with output failed:",
+          cmd,
+          "| error:",
+          err.message,
+          "| stderr:",
+          (stderr || "").trim()
+        );
+        reject(err);
+      } else {
+        resolve((stdout || "").trim());
+      }
+    });
+  });
+}
+
+function isSafeDockerRef(value) {
+  return /^[A-Za-z0-9._:@/-]+$/.test(value);
+}
+
+function isAuthorizedUpdater(userId) {
+  if (!BOT_UPDATE_ENABLED) {
+    return {
+      ok: false,
+      message:
+        "⚠️ 봇 업데이트 기능이 비활성화되어 있습니다. `BOT_UPDATE_ENABLED=true`로 설정해주세요.",
+    };
+  }
+
+  if (ADMIN_USER_IDS.length === 0) {
+    return {
+      ok: false,
+      message:
+        "⚠️ 업데이트 권한자가 설정되지 않았습니다. `ADMIN_USER_IDS`에 Discord 사용자 ID를 지정해주세요.",
+    };
+  }
+
+  if (!ADMIN_USER_IDS.includes(userId)) {
+    return {
+      ok: false,
+      message: "⛔ 이 명령은 관리자만 실행할 수 있습니다.",
+    };
+  }
+
+  return { ok: true };
+}
+
+async function getBotVersionInfo() {
+  const containerId = (process.env.HOSTNAME || "").trim();
+  if (!containerId || !isSafeDockerRef(containerId)) {
+    return {
+      ok: false,
+      message: "컨테이너 식별자를 확인할 수 없어 버전 정보를 조회하지 못했습니다.",
+    };
+  }
+
+  try {
+    const imagePair = await dockerWithOutput(
+      `docker inspect -f '{{.Config.Image}}|{{.Image}}' ${containerId}`
+    );
+    const [configuredImage, imageId] = imagePair
+      .split("|")
+      .map((value) => value.trim());
+
+    const inspectTarget = imageId || configuredImage;
+    if (!inspectTarget || !isSafeDockerRef(inspectTarget)) {
+      return {
+        ok: false,
+        message: "이미지 식별자를 확인할 수 없어 버전 정보를 조회하지 못했습니다.",
+      };
+    }
+
+    const imageMeta = await dockerWithOutput(
+      `docker image inspect -f '{{.Id}}|{{.Created}}' ${inspectTarget}`
+    );
+    const [resolvedImageId, createdAt] = imageMeta
+      .split("|")
+      .map((value) => value.trim());
+
+    return {
+      ok: true,
+      configuredImage: configuredImage || "(unknown)",
+      imageId: resolvedImageId || imageId || "(unknown)",
+      createdAt: createdAt || "(unknown)",
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      message: `버전 정보 조회 실패: ${err.message}`,
+    };
+  }
+}
+
+function formatVersionMessage(versionInfo) {
+  if (!versionInfo.ok) {
+    return `ℹ️ ${versionInfo.message}`;
+  }
+
+  return (
+    "ℹ️ 봇 버전 정보\n" +
+    `- Image: ${versionInfo.configuredImage}\n` +
+    `- Image ID: ${versionInfo.imageId}\n` +
+    `- Created: ${versionInfo.createdAt}`
+  );
+}
+
+function getWatchtowerRunOnceCommand() {
+  if (!isSafeDockerRef(WATCHTOWER_IMAGE)) {
+    throw new Error(
+      "WATCHTOWER_IMAGE 값이 안전하지 않습니다. 영문/숫자/._:@/- 문자만 사용해주세요."
+    );
+  }
+
+  return (
+    "docker run --rm " +
+    "-v /var/run/docker.sock:/var/run/docker.sock " +
+    `${WATCHTOWER_IMAGE} ` +
+    "--run-once --cleanup --label-enable"
+  );
 }
 
 async function fetchWithTimeout(url, options = {}, timeout = 3000) {
@@ -281,8 +416,26 @@ const client = new Client({
   ],
 });
 
-client.on("clientReady", () => {
+client.on("clientReady", async () => {
   console.log("봇 준비 완료");
+
+  const versionInfo = await getBotVersionInfo();
+  console.log("[version] ready info:", formatVersionMessage(versionInfo));
+
+  if (!STATUS_CHANNEL_ID) {
+    return;
+  }
+
+  try {
+    const statusChannel = await client.channels.fetch(STATUS_CHANNEL_ID);
+    if (!statusChannel || !statusChannel.isTextBased()) {
+      console.log("[version] STATUS_CHANNEL_ID is not a text channel.");
+      return;
+    }
+    await statusChannel.send(formatVersionMessage(versionInfo));
+  } catch (err) {
+    console.log("[version] failed to send ready version message:", err.message);
+  }
 });
 
 client.on("error", (err) => {
@@ -305,8 +458,49 @@ client.on("messageCreate", async (msg) => {
   if (content === "!도움") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!기동\n!일시중지\n!재시작\n!상태\n!접속자"
+        "!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!봇 버전\n!봇 업데이트"
     );
+  }
+
+  if (content === "!봇 버전" || content === "!봇버전") {
+    console.log("[command] !봇 버전 requested.");
+    const versionInfo = await getBotVersionInfo();
+    return msg.reply(formatVersionMessage(versionInfo));
+  }
+
+  if (content === "!봇 업데이트" || content === "!봇업데이트") {
+    console.log("[command] !봇 업데이트 requested.");
+
+    if (updateInProgress) {
+      return msg.reply("⏳ 이미 업데이트 작업이 진행 중입니다.");
+    }
+
+    const auth = isAuthorizedUpdater(msg.author.id);
+    if (!auth.ok) {
+      return msg.reply(auth.message);
+    }
+
+    updateInProgress = true;
+    await msg.reply(
+      "🔄 봇 이미지 업데이트 확인을 시작합니다. 완료 전에 봇이 재시작될 수 있습니다."
+    );
+
+    try {
+      const runOnceCommand = getWatchtowerRunOnceCommand();
+      await docker(runOnceCommand);
+      const versionInfo = await getBotVersionInfo();
+      await msg.channel.send(
+        "✅ 업데이트 확인이 완료되었습니다.\n" +
+          formatVersionMessage(versionInfo)
+      );
+    } catch (err) {
+      console.log("[command] !봇 업데이트 failed:", err.message);
+      await msg.channel.send(
+        "⚠️ 봇 업데이트 실행에 실패했습니다. Docker 접근 권한, WATCHTOWER_IMAGE, 라벨 설정을 확인해주세요."
+      );
+    } finally {
+      updateInProgress = false;
+    }
   }
 
   if (content === "!기동") {

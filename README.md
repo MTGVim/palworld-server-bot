@@ -25,6 +25,10 @@
 - **DISCORD_BOT_TOKEN**: 디스코드 봇 토큰
 - **SERVER_URL**: 팔월드 서버 관리자 API 엔드포인트 (예: `http://172.17.0.1:8212`)
 - **ADMIN_PASSWORD**: 관리자 비밀번호 (HTTP Basic Auth용)
+- **ADMIN_USER_IDS**: `!봇 업데이트` 실행 권한을 가진 Discord 사용자 ID 목록 (쉼표 구분)
+- **BOT_UPDATE_ENABLED**: 봇 업데이트 명령 활성화 여부 (`true`/`false`, 기본 `false`)
+- **STATUS_CHANNEL_ID**: 봇 ready 시 버전 정보를 보낼 Discord 채널 ID (선택)
+- **WATCHTOWER_IMAGE**: 1회 업데이트 실행 시 사용할 Watchtower 이미지 (기본 `containrrr/watchtower:latest`)
 - **AUTO_PAUSE_TIMEOUT**: 유휴 경고 기준 시간(초). 기본값 `300`
 - **CHECK_INTERVAL**: 접속자 체크 주기(ms). 기본값 `10000`
 - **PLAYERS_API_TIMEOUT_MS**: 접속자 API 타임아웃(ms). 기본값 `5000`
@@ -40,27 +44,19 @@ RCON 관련 변수는 선택적으로 설정할 수 있습니다.
 
 ---
 
-## Docker 이미지 빌드
+## Docker 이미지 배포
 
-로컬에서 다음 스크립트로 이미지를 빌드합니다.
+운영 이미지는 GitHub Container Registry(`ghcr.io/mtgvim/palworld-server-bot:latest`)를 사용합니다.
+이 저장소에서는 CI/CD로 이미지가 빌드/배포됩니다.
 
-```bash
-bash build.sh
-```
-
-내부적으로 다음 명령과 동일합니다.
-
-```bash
-docker build -t palworld-monitor:latest .
-```
-
-Dockerfile은 Yarn을 사용하여 `package.json` / `yarn.lock` 기반으로 의존성을 설치합니다.
+`!봇 업데이트` 명령은 상시 Watchtower 컨테이너를 띄우지 않고, 필요 시 `docker run ... watchtower --run-once --label-enable`를 1회 실행해
+Watchtower 라벨이 켜진 컨테이너만 업데이트를 확인/적용합니다.
 
 ---
 
 ## 실행 예시
 
-이미지 빌드 후 단순 실행 예시는 다음과 같습니다.
+단순 실행 예시는 다음과 같습니다.
 
 ```bash
 docker run --rm \
@@ -76,6 +72,7 @@ docker run --rm \
 
 `docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker unpause/pause/restart` 명령으로
 `palworld-server` 컨테이너를 제어하도록 구성되어 있습니다.
+또한 `com.centurylinklabs.watchtower.enable=true` 라벨을 사용해 `!봇 업데이트` 대상 컨테이너를 명시합니다.
 
 자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 `⚠️ N분동안 접속자가 없습니다.` 경고를 1회만 전송합니다.
 경고는 `!기동`으로 서버를 다시 기동하면 초기화됩니다.
@@ -90,3 +87,5 @@ docker run --rm \
 - `!재시작`     : `docker restart palworld-server`
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
 - `!접속자`     : 현재 접속 중인 플레이어 목록 출력
+- `!봇 버전`    : 현재 실행 중인 봇 이미지 정보(이미지명/sha/생성시각) 조회
+- `!봇 업데이트`: Watchtower 1회 실행으로 라벨 대상 컨테이너 업데이트 확인/적용 (관리자 전용)
