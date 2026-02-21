@@ -27,6 +27,7 @@ services:
       RCON_PASSWORD: "여기에_RCON_비밀번호"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      # RPS 전적 영속화 필수: 컨테이너 교체/재시작 후에도 /app/data 유지
       - ./data:/app/data
     labels:
       - com.centurylinklabs.watchtower.enable=true

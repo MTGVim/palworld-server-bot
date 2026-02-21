@@ -311,6 +311,90 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function normalizeContainerPath(value) {
+  const normalized = path.posix.normalize(String(value || "").trim());
+  if (!normalized) return "/";
+  return normalized.startsWith("/") ? normalized : `/${normalized}`;
+}
+
+function isPathCoveredByMount(targetPath, mountDestination) {
+  const target = normalizeContainerPath(targetPath);
+  const destination = normalizeContainerPath(mountDestination);
+  return target === destination || target.startsWith(`${destination}/`);
+}
+
+async function warnRpsPersistenceMisconfigOnReady() {
+  if (!process.env.RPS_STATS_PATH) {
+    console.log(
+      "[rps] warning: RPS_STATS_PATH env is not explicitly set. Using default path:",
+      RPS_STATS_PATH
+    );
+    console.log(
+      "[rps] action: set RPS_STATS_PATH=/app/data/rps-stats.json in runtime env."
+    );
+  }
+
+  const containerId = (process.env.HOSTNAME || "").trim();
+  if (!containerId || !isSafeDockerRef(containerId)) {
+    console.log(
+      "[rps] warning: cannot inspect container mounts. HOSTNAME is missing or unsafe."
+    );
+    console.log(
+      "[rps] action: ensure container can read docker socket and run: docker inspect <container> --format '{{json .Mounts}}'"
+    );
+    return;
+  }
+
+  try {
+    const mountsRaw = await dockerWithOutput(
+      `docker inspect -f '{{json .Mounts}}' ${containerId}`
+    );
+    const mounts = safeJsonParse(mountsRaw, []);
+    const coveringMount = Array.isArray(mounts)
+      ? mounts.find((mount) => (
+        mount &&
+        typeof mount.Destination === "string" &&
+        isPathCoveredByMount(RPS_STATS_PATH, mount.Destination)
+      ))
+      : null;
+
+    if (!coveringMount) {
+      console.log(
+        "[rps] warning: no container mount covers RPS_STATS_PATH. stats may reset on restart/update.",
+        "| path:",
+        RPS_STATS_PATH
+      );
+      console.log(
+        `[rps] action: add a writable volume for ${RPS_STATS_PATH} (example: ./data:/app/data).`
+      );
+      return;
+    }
+
+    if (coveringMount.RW !== true) {
+      console.log(
+        "[rps] warning: storage mount is read-only. stats cannot persist.",
+        `| dst: ${coveringMount.Destination || "(unknown)"}`
+      );
+      console.log(
+        "[rps] action: change mount mode to writable (rw) for RPS stats volume."
+      );
+    }
+
+    console.log(
+      "[rps] storage mount detected:",
+      `type=${coveringMount.Type || "(unknown)"}`,
+      `src=${coveringMount.Source || "(unknown)"}`,
+      `dst=${coveringMount.Destination || "(unknown)"}`,
+      `rw=${coveringMount.RW === true ? "true" : "false"}`
+    );
+  } catch (err) {
+    console.log(
+      "[rps] warning: failed to inspect self mounts for persistence check:",
+      err.message
+    );
+  }
+}
+
 function buildCommitRef(configuredImage, revision) {
   if (!configuredImage || !revision) {
     return "";
@@ -478,6 +562,9 @@ async function ensureRpsStatsLoaded() {
     console.log(
       "[rps] warning: RPS_STATS_PATH is outside /app/data. volume persistence may not work as expected:",
       RPS_STATS_PATH
+    );
+    console.log(
+      "[rps] action: use /app/data/* path and mount host volume to /app/data."
     );
   }
 }
@@ -779,6 +866,7 @@ const client = new Client({
 client.on("clientReady", async () => {
   console.log("봇 준비 완료");
   await ensureRpsStatsLoaded();
+  await warnRpsPersistenceMisconfigOnReady();
 
   const versionInfo = await getBotVersionInfo();
   console.log("[version] ready info:", formatBootVersionMessage(versionInfo));

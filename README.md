@@ -116,30 +116,27 @@ docker run --rm \
 
 1. 봇 로그에서 저장소 상태 로그 확인
 - `[rps] storage ready: ... path=... writable=... fileExists=... users=... games=...`
+- `[rps] storage mount detected: type=... src=... dst=... rw=...`
 - `[rps] persist success: path=... writes=... bytes=...`
+- 경고 로그가 나오면 바로 뒤의 `[rps] action: ...` 안내를 그대로 적용한다.
 
-2. 자동 점검 스크립트 실행
-```bash
-./scripts/check-rps-persistence.sh
-```
-
-3. 호스트 파일 확인
+2. 호스트 파일 확인
 ```bash
 ls -l ./data/rps-stats.json
 cat ./data/rps-stats.json
 ```
 
-4. 컨테이너 마운트 확인
+3. 컨테이너 마운트 확인
 ```bash
 docker inspect palbot --format '{{json .Mounts}}'
 docker inspect palbot --format '{{range .Config.Env}}{{println .}}{{end}}' | grep RPS_STATS_PATH
 ```
 
-5. 재시작/업데이트 후 전적 재확인
+4. 재시작/업데이트 후 전적 재확인
 - `docker compose restart palbot` 또는 `!봇 업데이트` 실행
 - `!가위바위보 전적`으로 값 유지 여부 확인
 
-6. 컨테이너가 `Cannot find module './rps-core'`로 실패하면
+5. 컨테이너가 `Cannot find module './rps-core'`로 실패하면
 - 구버전 이미지가 실행 중이라는 뜻이다.
 - 최신 이미지를 다시 받아 재기동한다.
 ```bash
