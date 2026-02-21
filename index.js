@@ -797,7 +797,8 @@ client.on("messageCreate", async (msg) => {
     } catch (err) {
       console.log("[command] !봇 업데이트 failed:", err.message);
       await msg.channel.send(
-        `⚠️ 봇 업데이트 실행에 실패했습니다. ${err.message} (Docker 접근 권한, WATCHTOWER_IMAGE, 라벨 설정을 확인해주세요.)\n\n` +
+        `⚠️ 봇 업데이트 실행에 실패했습니다. ${err.message}\n` +
+        "(Docker 접근 권한, WATCHTOWER_IMAGE, 라벨 설정을 확인해주세요.)\n\n" +
         getAvailableCommandsMessage()
       );
     } finally {
