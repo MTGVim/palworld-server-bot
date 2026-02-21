@@ -642,9 +642,6 @@ const client = new Client({
 
 client.on("clientReady", async () => {
   console.log("봇 준비 완료");
-  await ensureRpsStatsLoaded();
-  await warnRpsPersistenceMisconfigOnReady();
-
   const versionInfo = await getBotVersionInfo();
   console.log("[version] ready info:", formatBootVersionMessage(versionInfo));
 
