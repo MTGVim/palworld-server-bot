@@ -110,12 +110,8 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
-          ✅ GHCR 이미지 업로드 확인 완료
-          - Repo: ${{ github.repository }}
-          - Commit: ${SHORT_SHA}
-          - Image: ${IMAGE}
-          - Digest: ${NEW_IMAGE_DIGEST:-unknown}
-          - Compare: ${COMPARE_URL}
+          ✅ 이미지 업데이트됨 (${SHORT_SHA})
+          🔗 [변경사항](${COMPARE_URL})
           EOF
           )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
@@ -136,11 +132,9 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
-          ❌ GHCR 이미지 업로드 확인 실패
-          - Repo: ${{ github.repository }}
-          - Commit: ${SHORT_SHA}
-          - Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          - Compare: ${COMPARE_URL}
+          ❌ 이미지 업로드/검증 실패 (${SHORT_SHA})
+          🔗 Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          🔗 [변경사항](${COMPARE_URL})
           EOF
           )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \

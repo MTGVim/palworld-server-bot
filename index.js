@@ -224,6 +224,18 @@ function formatBootVersionMessage(versionInfo) {
   );
 }
 
+function formatUpdateSummaryMessage(versionInfo) {
+  if (!versionInfo.ok) {
+    return `✅ 업데이트 확인이 완료되었습니다.\nℹ️ ${versionInfo.message}`;
+  }
+
+  return (
+    "✅ 업데이트 확인이 완료되었습니다.\n" +
+    `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
+    `- Revision: ${versionInfo.revision}`
+  );
+}
+
 function formatCreatedAtSeoul(createdAt) {
   if (!createdAt || createdAt === "(unknown)") {
     return createdAt || "(unknown)";
@@ -799,10 +811,7 @@ client.on("messageCreate", async (msg) => {
       const runOnceCommand = getWatchtowerRunOnceCommand();
       await docker(runOnceCommand);
       const versionInfo = await getBotVersionInfo();
-      await msg.channel.send(
-        "✅ 업데이트 확인이 완료되었습니다.\n" +
-          formatVersionMessage(versionInfo)
-      );
+      await msg.channel.send(formatUpdateSummaryMessage(versionInfo));
     } catch (err) {
       console.log("[command] !봇 업데이트 failed:", err.message);
       await msg.channel.send(
