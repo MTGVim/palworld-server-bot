@@ -78,6 +78,7 @@ function getPrimaryAllowedChannelId() {
 }
 const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
 const WATCHTOWER_SCOPE = (process.env.WATCHTOWER_SCOPE || "palworld-server-bot").trim();
+const WATCHTOWER_UPDATE_TIMEOUT_MS = parseInt(process.env.WATCHTOWER_UPDATE_TIMEOUT_MS || "180000", 10);
 const BOT_IMAGE_REF = (process.env.BOT_IMAGE_REF || "ghcr.io/mtgvim/palworld-server-bot:latest").trim();
 
 const AUTH =
@@ -100,6 +101,33 @@ function docker(cmd) {
         reject(err);
       } else {
         console.log("[docker] command succeeded:", cmd);
+        resolve();
+      }
+    });
+  });
+}
+
+function dockerWithTimeout(cmd, timeoutMs = WATCHTOWER_UPDATE_TIMEOUT_MS) {
+  console.log("[docker] executing command with timeout:", cmd, "| timeoutMs:", timeoutMs);
+  return new Promise((resolve, reject) => {
+    exec(cmd, { timeout: timeoutMs }, (err) => {
+      if (err) {
+        const timedOut = err.killed || err.signal === "SIGTERM" || /timed out/i.test(err.message || "");
+        console.log(
+          "[docker] command with timeout failed:",
+          cmd,
+          "| timeout:",
+          timedOut ? "true" : "false",
+          "| error:",
+          err.message
+        );
+        if (timedOut) {
+          reject(new Error("업데이트 명령이 3분 안에 완료되지 않아 중단되었습니다."));
+        } else {
+          reject(err);
+        }
+      } else {
+        console.log("[docker] command with timeout succeeded:", cmd);
         resolve();
       }
     });
@@ -761,7 +789,7 @@ client.on("messageCreate", async (msg) => {
 
     try {
       const runOnceCommand = getWatchtowerRunOnceCommand();
-      await docker(runOnceCommand);
+      await dockerWithTimeout(runOnceCommand);
       const versionInfo = await getBotVersionInfo();
       await msg.channel.send(
         `${formatUpdateSummaryMessage(versionInfo)}\n\n${getAvailableCommandsMessage()}`
@@ -769,7 +797,8 @@ client.on("messageCreate", async (msg) => {
     } catch (err) {
       console.log("[command] !봇 업데이트 failed:", err.message);
       await msg.channel.send(
-        "⚠️ 봇 업데이트 실행에 실패했습니다. Docker 접근 권한, WATCHTOWER_IMAGE, 라벨 설정을 확인해주세요."
+        `⚠️ 봇 업데이트 실행에 실패했습니다. ${err.message} (Docker 접근 권한, WATCHTOWER_IMAGE, 라벨 설정을 확인해주세요.)\n\n` +
+        getAvailableCommandsMessage()
       );
     } finally {
       updateInProgress = false;
