@@ -28,11 +28,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          LATEST="$(jq -r '.head_commit.message // ""' "$GITHUB_EVENT_PATH" | head -n1)"
-          if [ -z "$LATEST" ]; then
-            LATEST="$(git log -1 --pretty=%s)"
-          fi
-          TOTAL="$(jq -r '(.commits | length) // 0' "$GITHUB_EVENT_PATH")"
+          LATEST="$(git log -1 --pretty=%s)"
+          TOTAL="$(git rev-list --count "${{ github.event.before }}..${{ github.sha }}" 2>/dev/null || echo 1)"
           if [ "$TOTAL" -lt 1 ]; then
             TOTAL=1
           fi
@@ -41,13 +38,11 @@ jobs:
           if [ "$EXTRA" -gt 0 ]; then
             SUFFIX=" (외 ${EXTRA}건)"
           fi
-          echo "COMMIT_EXTRA_SUFFIX=$SUFFIX" >> "$GITHUB_ENV"
           {
-            echo "LATEST_COMMIT_LINE<<EOF"
-            echo "$LATEST"
+            echo "COMMIT_SUMMARY_LINE<<EOF"
+            echo "${LATEST}${SUFFIX}"
             echo "EOF"
           } >> "$GITHUB_ENV"
-
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -132,16 +127,15 @@ jobs:
           fi
           IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}"
           SHORT_SHA="${GITHUB_SHA::7}"
-          NOW_TS="$(date +%s)"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
-          ┏ 🚀 이미지 업데이트됨 (${SHORT_SHA}) ┓
-          🤖 봇에 반영하려면 `!봇 업데이트`를 입력하세요.
-          📝 ${LATEST_COMMIT_LINE}${COMMIT_EXTRA_SUFFIX}
-          🆔 run-${{ github.run_id }} / attempt-${{ github.run_attempt }}
-          🕒 <t:${NOW_TS}:F>
+          🚀 도커 이미지 배포 완료 (${SHORT_SHA})
+
+          🤖 봇에 반영하려면 "!봇 업데이트"를 입력하세요.
+          📝 ${COMMIT_SUMMARY_LINE}
+
+          ────────────────────────────────────────
           🔗 [변경사항](${COMPARE_URL})
-          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
           EOF
           )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
@@ -160,16 +154,14 @@ jobs:
             exit 0
           fi
           SHORT_SHA="${GITHUB_SHA::7}"
-          NOW_TS="$(date +%s)"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
-          ┏ ❌ 이미지 업로드/검증 실패 (${SHORT_SHA}) ┓
-          📝 ${LATEST_COMMIT_LINE}${COMMIT_EXTRA_SUFFIX}
-          🆔 run-${{ github.run_id }} / attempt-${{ github.run_attempt }}
-          🕒 <t:${NOW_TS}:F>
+          ❌ 도커 이미지 배포 실패 (${SHORT_SHA})
+          📝 ${COMMIT_SUMMARY_LINE}
+
+          ────────────────────────────────────────
           🔗 Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           🔗 [변경사항](${COMPARE_URL})
-          ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
           EOF
           )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
