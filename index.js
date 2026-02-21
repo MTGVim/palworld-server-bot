@@ -59,6 +59,7 @@ let idleWarningSentSinceStartup = false;
 let updateInProgress = false;
 let rpsStats = {};
 let rpsStatsLoaded = false;
+let loopPausedNoticeShown = false;
 const rpsPersistence = createRpsPersistence({
   fs,
   statsPath: RPS_STATS_PATH,
@@ -243,9 +244,10 @@ function formatBootVersionMessage(versionInfo) {
   }
 
   return (
-    "봇이 재시작되었습니다.\n" +
+    "ℹ️ 봇이 재시작되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
-    `- Revision: ${versionInfo.revision}`
+    `- Revision: ${versionInfo.revision}\n` +
+    "- 가이드: `!도움`으로 명령어 목록 확인"
   );
 }
 
@@ -665,7 +667,8 @@ async function fetchWithTimeout(url, options = {}, timeout = 3000) {
   }
 }
 
-async function isPaused() {
+async function isPaused(options = {}) {
+  const { verbose = true } = options;
   return new Promise((resolve) => {
     exec(
       "docker inspect -f '{{.State.Paused}}' palworld-server",
@@ -678,10 +681,12 @@ async function isPaused() {
           resolve(false);
         } else {
           const paused = out.trim() === "true";
-          console.log(
-            "[status] palworld-server paused state:",
-            paused ? "true" : "false"
-          );
+          if (verbose) {
+            console.log(
+              "[status] palworld-server paused state:",
+              paused ? "true" : "false"
+            );
+          }
           resolve(paused);
         }
       }
@@ -788,10 +793,19 @@ async function getPlayersSnapshot(logPrefix = "players") {
 // 🔥 AUTO PAUSE LOOP
 setInterval(async () => {
   try {
-    const paused = await isPaused();
+    const paused = await isPaused({ verbose: false });
     if (paused) {
-      console.log("[loop] palworld-server is already paused. skipping check.");
+      if (!loopPausedNoticeShown) {
+        console.log("[status] palworld-server paused state: true");
+        console.log("[loop] palworld-server is already paused. skipping check.");
+        loopPausedNoticeShown = true;
+      }
       return;
+    }
+    if (loopPausedNoticeShown) {
+      console.log("[status] palworld-server paused state: false");
+      console.log("[loop] palworld-server resumed. restarting checks.");
+      loopPausedNoticeShown = false;
     }
 
     const snapshot = await getPlayersSnapshot("loop");
@@ -1051,7 +1065,7 @@ client.on("messageCreate", async (msg) => {
       "플레이어"
     ).trim();
     return msg.reply(
-      `${rpsChoiceEmoji(userChoice)} ${requesterName} vs ${rpsChoiceEmoji(botChoice)} 봇 = ${rpsResultEmoji(result)} ${result}\n📈 ${formatRpsRecord(record)}`
+      `${requesterName}${rpsChoiceEmoji(userChoice)} vs ${rpsChoiceEmoji(botChoice)}🤖 = ${rpsResultEmoji(result)} ${result}\n📈 ${formatRpsRecord(record)}`
     );
   }
 

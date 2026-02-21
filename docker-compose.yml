@@ -20,6 +20,7 @@ services:
       PLAYERS_API_TIMEOUT_MS: "5000"
       STABLE_ZERO_REQUIRED_SAMPLES: "2"
       NON_ZERO_GRACE_SECONDS: "20"
+      # 참고: palworld-server 일시중지 상태 로그는 코드에서 상태 전환 시 1회만 출력
 
       # 선택: RCON 관련
       RCON_HOST: 172.17.0.1
