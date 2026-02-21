@@ -510,7 +510,7 @@ function rpsChoiceEmoji(choice) {
 }
 
 function rpsResultEmoji(result) {
-  if (result === "승리") return "💃";
+  if (result === "승리") return "🎉";
   if (result === "패배") return "🥹";
   return "🤝";
 }
@@ -1065,7 +1065,7 @@ client.on("messageCreate", async (msg) => {
       "플레이어"
     ).trim();
     return msg.reply(
-      `${requesterName}${rpsChoiceEmoji(userChoice)} vs ${rpsChoiceEmoji(botChoice)}🤖 = ${rpsResultEmoji(result)} ${result}\n📈 ${formatRpsRecord(record)}`
+      `${requesterName}${rpsChoiceEmoji(userChoice)} vs ${rpsChoiceEmoji(botChoice)} = ${rpsResultEmoji(result)} ${result}\n📈 ${formatRpsRecord(record)}`
     );
   }
 
