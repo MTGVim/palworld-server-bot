@@ -72,7 +72,7 @@ async function testPersistQueueSerializesWrites() {
   const parsed = JSON.parse(raw);
   assert.strictEqual(parsed.u1.games, 2);
   assert.strictEqual(persistence.getWriteCount(), 2);
-  assert.ok(logs.some((line) => line.includes("persist success")));
+  assert.ok(logs.some((line) => line.includes("전적 저장 성공")));
   console.log("PASS createRpsPersistence queue");
 }
 

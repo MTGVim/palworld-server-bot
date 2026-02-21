@@ -326,21 +326,21 @@ function isPathCoveredByMount(targetPath, mountDestination) {
 async function warnRpsPersistenceMisconfigOnReady() {
   if (!process.env.RPS_STATS_PATH) {
     console.log(
-      "[rps] warning: RPS_STATS_PATH env is not explicitly set. Using default path:",
+      "🚨 [rps][경고] RPS_STATS_PATH 환경변수가 없어 기본 경로를 사용합니다:",
       RPS_STATS_PATH
     );
     console.log(
-      "[rps] action: set RPS_STATS_PATH=/app/data/rps-stats.json in runtime env."
+      "🛠️ [rps][조치] 런타임 환경변수에 RPS_STATS_PATH=/app/data/rps-stats.json 를 명시하세요."
     );
   }
 
   const containerId = (process.env.HOSTNAME || "").trim();
   if (!containerId || !isSafeDockerRef(containerId)) {
     console.log(
-      "[rps] warning: cannot inspect container mounts. HOSTNAME is missing or unsafe."
+      "🚨 [rps][경고] 컨테이너 마운트를 검사할 수 없습니다. HOSTNAME 값이 없거나 안전하지 않습니다."
     );
     console.log(
-      "[rps] action: ensure container can read docker socket and run: docker inspect <container> --format '{{json .Mounts}}'"
+      "🛠️ [rps][조치] docker.sock 접근 가능 상태인지 확인하고 다음 명령으로 마운트를 점검하세요: docker inspect <container> --format '{{json .Mounts}}'"
     );
     return;
   }
@@ -360,28 +360,28 @@ async function warnRpsPersistenceMisconfigOnReady() {
 
     if (!coveringMount) {
       console.log(
-        "[rps] warning: no container mount covers RPS_STATS_PATH. stats may reset on restart/update.",
+        "🚨 [rps][경고] RPS_STATS_PATH를 포함하는 컨테이너 마운트가 없습니다. 전적은 재시작/업데이트 시 초기화됩니다.",
         "| path:",
         RPS_STATS_PATH
       );
       console.log(
-        `[rps] action: add a writable volume for ${RPS_STATS_PATH} (example: ./data:/app/data).`
+        `🛠️ [rps][조치] ${RPS_STATS_PATH} 경로를 포함하는 쓰기 가능한 볼륨을 추가하세요. (예: ./data:/app/data)`
       );
       return;
     }
 
     if (coveringMount.RW !== true) {
       console.log(
-        "[rps] warning: storage mount is read-only. stats cannot persist.",
+        "🚨 [rps][경고] 전적 저장 마운트가 읽기 전용입니다. 전적을 기록할 수 없습니다.",
         `| dst: ${coveringMount.Destination || "(unknown)"}`
       );
       console.log(
-        "[rps] action: change mount mode to writable (rw) for RPS stats volume."
+        "🛠️ [rps][조치] RPS 전적 볼륨을 쓰기 가능(rw) 모드로 변경하세요."
       );
     }
 
     console.log(
-      "[rps] storage mount detected:",
+      "✅ [rps][정상] 전적 저장 마운트를 확인했습니다:",
       `type=${coveringMount.Type || "(unknown)"}`,
       `src=${coveringMount.Source || "(unknown)"}`,
       `dst=${coveringMount.Destination || "(unknown)"}`,
@@ -389,7 +389,7 @@ async function warnRpsPersistenceMisconfigOnReady() {
     );
   } catch (err) {
     console.log(
-      "[rps] warning: failed to inspect self mounts for persistence check:",
+      "🚨 [rps][경고] 전적 영속화 점검을 위한 마운트 조회에 실패했습니다:",
       err.message
     );
   }
@@ -507,14 +507,14 @@ async function ensureRpsStatsLoaded() {
     } catch (parseErr) {
       const brokenPath = `${RPS_STATS_PATH}.broken-${Date.now()}`;
       console.log(
-        "[rps] invalid json detected. backing up broken file:",
+        "🚨 [rps][경고] 전적 파일 JSON이 손상되어 백업 후 초기화합니다:",
         brokenPath
       );
       try {
         await fs.rename(RPS_STATS_PATH, brokenPath);
       } catch (renameErr) {
         console.log(
-          "[rps] failed to backup broken stats file:",
+          "🚨 [rps][경고] 손상된 전적 파일 백업에 실패했습니다:",
           renameErr.message,
           "| path:",
           RPS_STATS_PATH
@@ -526,7 +526,7 @@ async function ensureRpsStatsLoaded() {
   } catch (err) {
     if (err.code !== "ENOENT") {
       console.log(
-        "[rps] failed to load stats file:",
+        "🚨 [rps][경고] 전적 파일 로드에 실패했습니다:",
         err.message,
         "| path:",
         RPS_STATS_PATH
@@ -556,15 +556,15 @@ async function ensureRpsStatsLoaded() {
     fileExists = false;
   }
   console.log(
-    `[rps] storage ready: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
+    `ℹ️ [rps][정보] 전적 저장소 준비 완료: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
   );
   if (!RPS_STATS_PATH.startsWith("/app/data/")) {
     console.log(
-      "[rps] warning: RPS_STATS_PATH is outside /app/data. volume persistence may not work as expected:",
+      "🚨 [rps][경고] RPS_STATS_PATH가 /app/data 밖에 있습니다. 전적 영속화가 보장되지 않습니다:",
       RPS_STATS_PATH
     );
     console.log(
-      "[rps] action: use /app/data/* path and mount host volume to /app/data."
+      "🛠️ [rps][조치] /app/data/* 경로를 사용하고, 호스트 볼륨을 /app/data로 마운트하세요."
     );
   }
 }
@@ -591,7 +591,7 @@ function formatRpsRecord(record) {
   const draws = record.draws || 0;
   const games = record.games || 0;
   const winRate = games > 0 ? ((wins / games) * 100).toFixed(1) : "0.0";
-  return `전적 ${wins}승 ${losses}패 ${draws}무 | ${games}전 | 승률 ${winRate}%`;
+  return `승 ${wins} | 패 ${losses} | 무 ${draws} | ${games}전 | 승률 ${winRate}%`;
 }
 
 function getRpsRanking(limit) {
@@ -987,7 +987,9 @@ client.on("messageCreate", async (msg) => {
     const rpsArg = String(rpsMatch[1] || "").trim();
     if (rpsArg === "전적") {
       const record = getOrCreateRpsRecord(rpsStats, msg.author.id);
-      return msg.reply(`📊 <@${msg.author.id}> ${formatRpsRecord(record)}`);
+      return msg.reply(
+        `📊 <@${msg.author.id}> 기록\n${formatRpsRecord(record)}`
+      );
     }
 
     const rankingMatch = rpsArg.match(/^랭킹(?:\s+(\d+))?$/);
@@ -1018,8 +1020,14 @@ client.on("messageCreate", async (msg) => {
     const botChoice = ["가위", "바위", "보"][Math.floor(Math.random() * 3)];
     const result = evaluateRps(userChoice, botChoice);
     const record = await updateRpsStatsForUser(msg.author.id, result);
+    const requesterName = (
+      msg.member?.displayName ||
+      msg.author.globalName ||
+      msg.author.username ||
+      "플레이어"
+    ).trim();
     return msg.reply(
-      `${rpsChoiceEmoji(userChoice)} 당신 vs ${rpsChoiceEmoji(botChoice)} 봇 = ${rpsResultEmoji(result)} ${result}\n- 누적: ${formatRpsRecord(record)}`
+      `${rpsChoiceEmoji(userChoice)} ${requesterName} vs ${rpsChoiceEmoji(botChoice)} 봇 = ${rpsResultEmoji(result)} ${result}\n📈 ${formatRpsRecord(record)}`
     );
   }
 

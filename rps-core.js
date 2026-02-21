@@ -61,13 +61,13 @@ function createRpsPersistence({ fs, statsPath, logInterval, logger }) {
             writeCount % logInterval === 0)
         ) {
           logger(
-            `[rps] persist success: path=${statsPath} writes=${writeCount} bytes=${Buffer.byteLength(snapshot, "utf8")}`
+            `✅ [rps][정상] 전적 저장 성공: path=${statsPath} writes=${writeCount} bytes=${Buffer.byteLength(snapshot, "utf8")}`
           );
         }
       })
       .catch((err) => {
         logger(
-          `[rps] failed to persist stats: ${err.message} | path: ${statsPath}`
+          `🚨 [rps][경고] 전적 저장 실패: ${err.message} | path: ${statsPath}`
         );
       });
 
