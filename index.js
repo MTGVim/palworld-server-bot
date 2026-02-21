@@ -326,21 +326,21 @@ function isPathCoveredByMount(targetPath, mountDestination) {
 async function warnRpsPersistenceMisconfigOnReady() {
   if (!process.env.RPS_STATS_PATH) {
     console.log(
-      "🚨 [rps][경고] RPS_STATS_PATH 환경변수가 없어 기본 경로를 사용합니다:",
+      "🚨 [rps][WARN] RPS_STATS_PATH 환경변수가 없어 기본 경로를 사용합니다:",
       RPS_STATS_PATH
     );
     console.log(
-      "🛠️ [rps][조치] 런타임 환경변수에 RPS_STATS_PATH=/app/data/rps-stats.json 를 명시하세요."
+      "🛠️ [rps][ACTION] 런타임 환경변수에 RPS_STATS_PATH=/app/data/rps-stats.json 를 명시하세요."
     );
   }
 
   const containerId = (process.env.HOSTNAME || "").trim();
   if (!containerId || !isSafeDockerRef(containerId)) {
     console.log(
-      "🚨 [rps][경고] 컨테이너 마운트를 검사할 수 없습니다. HOSTNAME 값이 없거나 안전하지 않습니다."
+      "🚨 [rps][WARN] 컨테이너 마운트를 검사할 수 없습니다. HOSTNAME 값이 없거나 안전하지 않습니다."
     );
     console.log(
-      "🛠️ [rps][조치] docker.sock 접근 가능 상태인지 확인하고 다음 명령으로 마운트를 점검하세요: docker inspect <container> --format '{{json .Mounts}}'"
+      "🛠️ [rps][ACTION] docker.sock 접근 가능 상태인지 확인하고 다음 명령으로 마운트를 점검하세요: docker inspect <container> --format '{{json .Mounts}}'"
     );
     return;
   }
@@ -360,28 +360,28 @@ async function warnRpsPersistenceMisconfigOnReady() {
 
     if (!coveringMount) {
       console.log(
-        "🚨 [rps][경고] RPS_STATS_PATH를 포함하는 컨테이너 마운트가 없습니다. 전적은 재시작/업데이트 시 초기화됩니다.",
+        "🚨 [rps][WARN] RPS_STATS_PATH를 포함하는 컨테이너 마운트가 없습니다. 전적은 재시작/업데이트 시 초기화됩니다.",
         "| path:",
         RPS_STATS_PATH
       );
       console.log(
-        `🛠️ [rps][조치] ${RPS_STATS_PATH} 경로를 포함하는 쓰기 가능한 볼륨을 추가하세요. (예: ./data:/app/data)`
+        `🛠️ [rps][ACTION] ${RPS_STATS_PATH} 경로를 포함하는 쓰기 가능한 볼륨을 추가하세요. (예: ./data:/app/data)`
       );
       return;
     }
 
     if (coveringMount.RW !== true) {
       console.log(
-        "🚨 [rps][경고] 전적 저장 마운트가 읽기 전용입니다. 전적을 기록할 수 없습니다.",
+        "🚨 [rps][WARN] 전적 저장 마운트가 읽기 전용입니다. 전적을 기록할 수 없습니다.",
         `| dst: ${coveringMount.Destination || "(unknown)"}`
       );
       console.log(
-        "🛠️ [rps][조치] RPS 전적 볼륨을 쓰기 가능(rw) 모드로 변경하세요."
+        "🛠️ [rps][ACTION] RPS 전적 볼륨을 쓰기 가능(rw) 모드로 변경하세요."
       );
     }
 
     console.log(
-      "✅ [rps][정상] 전적 저장 마운트를 확인했습니다:",
+      "✅ [rps][OK] 전적 저장 마운트를 확인했습니다:",
       `type=${coveringMount.Type || "(unknown)"}`,
       `src=${coveringMount.Source || "(unknown)"}`,
       `dst=${coveringMount.Destination || "(unknown)"}`,
@@ -389,7 +389,7 @@ async function warnRpsPersistenceMisconfigOnReady() {
     );
   } catch (err) {
     console.log(
-      "🚨 [rps][경고] 전적 영속화 점검을 위한 마운트 조회에 실패했습니다:",
+      "🚨 [rps][WARN] 전적 영속화 점검을 위한 마운트 조회에 실패했습니다:",
       err.message
     );
   }
@@ -507,14 +507,14 @@ async function ensureRpsStatsLoaded() {
     } catch (parseErr) {
       const brokenPath = `${RPS_STATS_PATH}.broken-${Date.now()}`;
       console.log(
-        "🚨 [rps][경고] 전적 파일 JSON이 손상되어 백업 후 초기화합니다:",
+        "🚨 [rps][WARN] 전적 파일 JSON이 손상되어 백업 후 초기화합니다:",
         brokenPath
       );
       try {
         await fs.rename(RPS_STATS_PATH, brokenPath);
       } catch (renameErr) {
         console.log(
-          "🚨 [rps][경고] 손상된 전적 파일 백업에 실패했습니다:",
+          "🚨 [rps][WARN] 손상된 전적 파일 백업에 실패했습니다:",
           renameErr.message,
           "| path:",
           RPS_STATS_PATH
@@ -526,7 +526,7 @@ async function ensureRpsStatsLoaded() {
   } catch (err) {
     if (err.code !== "ENOENT") {
       console.log(
-        "🚨 [rps][경고] 전적 파일 로드에 실패했습니다:",
+        "🚨 [rps][WARN] 전적 파일 로드에 실패했습니다:",
         err.message,
         "| path:",
         RPS_STATS_PATH
@@ -556,15 +556,15 @@ async function ensureRpsStatsLoaded() {
     fileExists = false;
   }
   console.log(
-    `ℹ️ [rps][정보] 전적 저장소 준비 완료: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
+    `ℹ️ [rps][INFO] 전적 저장소 준비 완료: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
   );
   if (!RPS_STATS_PATH.startsWith("/app/data/")) {
     console.log(
-      "🚨 [rps][경고] RPS_STATS_PATH가 /app/data 밖에 있습니다. 전적 영속화가 보장되지 않습니다:",
+      "🚨 [rps][WARN] RPS_STATS_PATH가 /app/data 밖에 있습니다. 전적 영속화가 보장되지 않습니다:",
       RPS_STATS_PATH
     );
     console.log(
-      "🛠️ [rps][조치] /app/data/* 경로를 사용하고, 호스트 볼륨을 /app/data로 마운트하세요."
+      "🛠️ [rps][ACTION] /app/data/* 경로를 사용하고, 호스트 볼륨을 /app/data로 마운트하세요."
     );
   }
 }
