@@ -1,15 +1,8 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
-const { constants: FS_CONSTANTS } = require("fs");
 const fs = require("fs/promises");
 const path = require("path");
 const { evaluateIdleWarningDecision } = require("./idle-warning-decision");
-const {
-  createRpsPersistence,
-  evaluateRps,
-  getOrCreateRpsRecord,
-  normalizeRpsChoice,
-} = require("./rps-core");
 
 const bootTime = Date.now();
 
@@ -40,17 +33,6 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
 const STATUS_CHANNEL_ID = (process.env.STATUS_CHANNEL_ID || "").trim();
 const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
 const BOT_IMAGE_REF = (process.env.BOT_IMAGE_REF || "ghcr.io/mtgvim/palworld-server-bot:latest").trim();
-const RPS_STATS_PATH = (
-  process.env.RPS_STATS_PATH || "/app/data/rps-stats.json"
-).trim();
-const RPS_PERSIST_LOG_INTERVAL = parseInt(
-  process.env.RPS_PERSIST_LOG_INTERVAL || "20",
-  10
-);
-const RPS_RANKING_MIN_GAMES_FOR_WIN_RATE = parseInt(
-  process.env.RPS_RANKING_MIN_GAMES_FOR_WIN_RATE || "10",
-  10
-);
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -61,15 +43,7 @@ let lastNonZeroSeenAt = null;
 const recentPlayerCounts = [];
 let idleWarningSentSinceStartup = false;
 let updateInProgress = false;
-let rpsStats = {};
-let rpsStatsLoaded = false;
 let loopPausedNoticeShown = false;
-const rpsPersistence = createRpsPersistence({
-  fs,
-  statsPath: RPS_STATS_PATH,
-  logInterval: RPS_PERSIST_LOG_INTERVAL,
-  logger: (line) => console.log(line),
-});
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -356,91 +330,6 @@ function isPathCoveredByMount(targetPath, mountDestination) {
   return target === destination || target.startsWith(`${destination}/`);
 }
 
-async function warnRpsPersistenceMisconfigOnReady() {
-  if (!process.env.RPS_STATS_PATH) {
-    console.log(
-      "[rps][WARN] RPS_STATS_PATH 환경변수가 없어 기본 경로를 사용합니다:",
-      RPS_STATS_PATH
-    );
-    console.log(
-      "[rps][ACTION] 런타임 환경변수에 RPS_STATS_PATH=/app/data/rps-stats.json 를 명시하세요."
-    );
-  }
-
-  const containerId = (process.env.HOSTNAME || "").trim();
-  if (!containerId || !isSafeDockerRef(containerId)) {
-    console.log(
-      "[rps][WARN] 컨테이너 마운트를 검사할 수 없습니다. HOSTNAME 값이 없거나 안전하지 않습니다."
-    );
-    console.log(
-      "[rps][ACTION] docker.sock 접근 가능 상태인지 확인하고 다음 명령으로 마운트를 점검하세요: docker inspect <container> --format '{{json .Mounts}}'"
-    );
-    return;
-  }
-
-  try {
-    const mountsRaw = await dockerWithOutput(
-      `docker inspect -f '{{json .Mounts}}' ${containerId}`
-    );
-    const mounts = safeJsonParse(mountsRaw, []);
-    const coveringMount = Array.isArray(mounts)
-      ? mounts.find((mount) => (
-        mount &&
-        typeof mount.Destination === "string" &&
-        isPathCoveredByMount(RPS_STATS_PATH, mount.Destination)
-      ))
-      : null;
-
-    if (!coveringMount) {
-      console.log(
-        "[rps][WARN] RPS_STATS_PATH를 포함하는 컨테이너 마운트가 없습니다. 전적은 재시작/업데이트 시 초기화됩니다.",
-        "| path:",
-        RPS_STATS_PATH
-      );
-      console.log(
-        `[rps][ACTION] ${RPS_STATS_PATH} 경로를 포함하는 쓰기 가능한 볼륨을 추가하세요. (예: ./data:/app/data)`
-      );
-      return;
-    }
-
-    if (coveringMount.RW !== true) {
-      console.log(
-        "[rps][WARN] 전적 저장 마운트가 읽기 전용입니다. 전적을 기록할 수 없습니다.",
-        `| dst: ${coveringMount.Destination || "(unknown)"}`
-      );
-      console.log(
-        "[rps][ACTION] RPS 전적 볼륨을 쓰기 가능(rw) 모드로 변경하세요."
-      );
-    }
-
-    console.log(
-      "[rps][OK] 전적 저장 마운트를 확인했습니다:",
-      `type=${coveringMount.Type || "(unknown)"}`,
-      `src=${coveringMount.Source || "(unknown)"}`,
-      `dst=${coveringMount.Destination || "(unknown)"}`,
-      `rw=${coveringMount.RW === true ? "true" : "false"}`
-    );
-  } catch (err) {
-    if (isDockerNoSuchObjectError(err)) {
-      console.log(
-        "[rps][INFO] 현재 런타임에서는 HOSTNAME으로 자기 컨테이너를 조회할 수 없습니다. 마운트 자동 점검 로그를 생략합니다.",
-        `| hostname: ${containerId}`
-      );
-      console.log(
-        "[rps][ACTION] 필요하면 운영 환경에서 docker inspect <실제 컨테이너명> --format '{{json .Mounts}}' 로 직접 점검하세요."
-      );
-      return;
-    }
-    console.log(
-      "[rps][WARN] 전적 영속화 점검을 위한 마운트 조회에 실패했습니다:",
-      err.message
-    );
-    console.log(
-      "[rps][ACTION] docker.sock 접근/권한을 확인하고, 필요하면 docker inspect <실제 컨테이너명> --format '{{json .Mounts}}' 로 직접 점검하세요."
-    );
-  }
-}
-
 function buildCommitRef(configuredImage, revision) {
   if (!configuredImage || !revision) {
     return "";
@@ -478,198 +367,6 @@ function extractRevisionFromImageRef(imageRef) {
   }
 
   return tag;
-}
-
-async function getOnlineHumanMembers(guild) {
-  if (!guild) {
-    return {
-      ok: false,
-      message: "⚠️ 이 명령은 서버(길드) 채널에서만 사용할 수 있습니다.",
-      members: [],
-    };
-  }
-
-  try {
-    await guild.members.fetch({ withPresences: true });
-  } catch (err) {
-    console.log("[raffle] failed to fetch guild members/presences:", err.message);
-  }
-
-  const members = guild.members.cache.filter((member) => {
-    if (!member || member.user.bot) return false;
-    const status = member.presence && member.presence.status;
-    return Boolean(status) && status !== "offline";
-  });
-
-  if (members.size === 0) {
-    return {
-      ok: false,
-      message:
-        "⚠️ 온라인 유저를 찾지 못했습니다. 서버 멤버 프레즌스 인텐트(Guild Presences)를 켜고, 현재 온라인 멤버가 있는지 확인해주세요.",
-      members: [],
-    };
-  }
-
-  return { ok: true, members: Array.from(members.values()) };
-}
-
-function pickRandomMembers(members, count) {
-  const pool = members.slice();
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return pool.slice(0, count);
-}
-
-function rpsChoiceEmoji(choice) {
-  if (choice === "가위") return "✌️";
-  if (choice === "바위") return "✊";
-  if (choice === "보") return "✋";
-  return "❓";
-}
-
-function rpsResultEmoji(result) {
-  if (result === "승리") return "🎉";
-  if (result === "패배") return "🥹";
-  return "🤝";
-}
-
-async function ensureRpsStatsLoaded() {
-  if (rpsStatsLoaded) {
-    return;
-  }
-
-  const dir = path.dirname(RPS_STATS_PATH);
-  let loadMode = "empty";
-
-  try {
-    await fs.mkdir(dir, { recursive: true });
-    const raw = await fs.readFile(RPS_STATS_PATH, "utf8");
-    try {
-      const parsed = JSON.parse(raw);
-      rpsStats = parsed && typeof parsed === "object" ? parsed : {};
-      loadMode = "file";
-    } catch (parseErr) {
-      const brokenPath = `${RPS_STATS_PATH}.broken-${Date.now()}`;
-      console.log(
-        "[rps][WARN] 전적 파일 JSON이 손상되어 백업 후 초기화합니다:",
-        brokenPath
-      );
-      try {
-        await fs.rename(RPS_STATS_PATH, brokenPath);
-      } catch (renameErr) {
-        console.log(
-          "[rps][WARN] 손상된 전적 파일 백업에 실패했습니다:",
-          renameErr.message,
-          "| path:",
-          RPS_STATS_PATH
-        );
-      }
-      rpsStats = {};
-      loadMode = "recovered-empty";
-    }
-  } catch (err) {
-    if (err.code !== "ENOENT") {
-      console.log(
-        "[rps][WARN] 전적 파일 로드에 실패했습니다:",
-        err.message,
-        "| path:",
-        RPS_STATS_PATH
-      );
-    }
-    rpsStats = {};
-  }
-
-  rpsStatsLoaded = true;
-  const users = Object.keys(rpsStats).length;
-  const totalGames = Object.values(rpsStats).reduce((sum, row) => (
-    sum + (Number.isFinite(row && row.games) ? row.games : 0)
-  ), 0);
-  let writable = true;
-  let fileExists = false;
-  let fileSize = 0;
-  try {
-    await fs.access(dir, FS_CONSTANTS.W_OK);
-  } catch {
-    writable = false;
-  }
-  try {
-    const stat = await fs.stat(RPS_STATS_PATH);
-    fileExists = stat.isFile();
-    fileSize = stat.size;
-  } catch {
-    fileExists = false;
-  }
-  console.log(
-    `[rps][INFO] 전적 저장소 준비 완료: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
-  );
-  if (!RPS_STATS_PATH.startsWith("/app/data/")) {
-    console.log(
-      "[rps][WARN] RPS_STATS_PATH가 /app/data 밖에 있습니다. 전적 영속화가 보장되지 않습니다:",
-      RPS_STATS_PATH
-    );
-    console.log(
-      "[rps][ACTION] /app/data/* 경로를 사용하고, 호스트 볼륨을 /app/data로 마운트하세요."
-    );
-  }
-}
-
-async function persistRpsStats() {
-  await rpsPersistence.persist(rpsStats);
-}
-
-async function updateRpsStatsForUser(userId, result) {
-  await ensureRpsStatsLoaded();
-  const record = getOrCreateRpsRecord(rpsStats, userId);
-  record.games += 1;
-  if (result === "승리") record.wins += 1;
-  if (result === "패배") record.losses += 1;
-  if (result === "무승부") record.draws += 1;
-  record.updatedAt = new Date().toISOString();
-  await persistRpsStats();
-  return record;
-}
-
-function formatRpsRecord(record) {
-  const wins = record.wins || 0;
-  const losses = record.losses || 0;
-  const draws = record.draws || 0;
-  const games = record.games || 0;
-  const winRate = games > 0 ? ((wins / games) * 100).toFixed(1) : "0.0";
-  return `승 ${wins} | 패 ${losses} | 무 ${draws} | ${games}전 | 승률 ${winRate}%`;
-}
-
-function getRpsRanking(limit) {
-  const minGames = Number.isInteger(RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
-    ? Math.max(1, RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
-    : 10;
-  return Object.entries(rpsStats)
-    .map(([userId, record]) => ({
-      userId,
-      wins: Number.isFinite(record.wins) ? record.wins : 0,
-      losses: Number.isFinite(record.losses) ? record.losses : 0,
-      draws: Number.isFinite(record.draws) ? record.draws : 0,
-      games: Number.isFinite(record.games) ? record.games : 0,
-    }))
-    .filter((row) => row.games > 0)
-    .sort((a, b) => {
-      const aWinRate = a.games >= minGames ? a.wins / a.games : -1;
-      const bWinRate = b.games >= minGames ? b.wins / b.games : -1;
-      if (bWinRate !== aWinRate) return bWinRate - aWinRate;
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (b.games !== a.games) return b.games - a.games;
-      return a.losses - b.losses;
-    })
-    .slice(0, limit);
-}
-
-function formatRankingWinRate(row) {
-  const minGames = Number.isInteger(RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
-    ? Math.max(1, RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
-    : 10;
-  if (row.games < minGames) return `${minGames}판 미만 🐥`;
-  return `${((row.wins / row.games) * 100).toFixed(1)}%`;
 }
 
 function getWatchtowerRunOnceCommand() {
@@ -928,8 +625,6 @@ setInterval(async () => {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildPresences,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
@@ -977,9 +672,15 @@ client.on("messageCreate", async (msg) => {
   );
 
   if (content === "!도움") {
-    msg.reply(
-      "📌 사용 가능한 명령어\n" +
-        "!도움\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
+    msg.reply("📌 사용 가능한 명령어\n" +
+      "!도움\n" +
+      "!기동\n" +
+      "!일시중지\n" +
+      "!재시작\n" +
+      "!상태\n" +
+      "!접속자\n" +
+      "!봇 버전\n" +
+      "!봇 업데이트"
     );
   }
 
@@ -1017,88 +718,6 @@ client.on("messageCreate", async (msg) => {
     } finally {
       updateInProgress = false;
     }
-  }
-
-  const raffleMatch = content.match(/^!추첨(?:\s+(\d+))?$/);
-  if (raffleMatch) {
-    const requestedCount = raffleMatch[1] ? parseInt(raffleMatch[1], 10) : 1;
-    if (!Number.isInteger(requestedCount) || requestedCount <= 0) {
-      return msg.reply('⚠️ 사용법: `!추첨` 또는 `!추첨 N` (N은 1 이상의 정수)');
-    }
-
-    const onlineResult = await getOnlineHumanMembers(msg.guild);
-    if (!onlineResult.ok) {
-      return msg.reply(onlineResult.message);
-    }
-
-    const onlineMembers = onlineResult.members;
-    if (requestedCount > onlineMembers.length) {
-      return msg.reply(
-        `⚠️ 온라인 유저는 ${onlineMembers.length}명입니다. \`!추첨 ${onlineMembers.length}\` 이하로 입력해주세요.`
-      );
-    }
-
-    const winners = pickRandomMembers(onlineMembers, requestedCount);
-    const mentions = winners.map((member) => `<@${member.id}>`).join(", ");
-
-    if (requestedCount === 1) {
-      return msg.reply(`🎉 추첨 결과: ${mentions}`);
-    }
-
-    return msg.reply(
-      `🎉 추첨 결과 (${requestedCount}명 / 온라인 ${onlineMembers.length}명)\n${mentions}`
-    );
-  }
-
-  const rpsMatch = content.match(/^!가위바위보(?:\s+(.+))?$/);
-  if (rpsMatch) {
-    await ensureRpsStatsLoaded();
-
-    const rpsArg = String(rpsMatch[1] || "").trim();
-    if (rpsArg === "전적") {
-      const record = getOrCreateRpsRecord(rpsStats, msg.author.id);
-      return msg.reply(
-        `📊 <@${msg.author.id}> 기록\n${formatRpsRecord(record)}`
-      );
-    }
-
-    const rankingMatch = rpsArg.match(/^랭킹(?:\s+(\d+))?$/);
-    if (rankingMatch) {
-      const limit = rankingMatch[1] ? parseInt(rankingMatch[1], 10) : 10;
-      if (!Number.isInteger(limit) || limit <= 0) {
-        return msg.reply("⚠️ 사용법: `!가위바위보 랭킹` 또는 `!가위바위보 랭킹 N`");
-      }
-
-      const ranking = getRpsRanking(Math.min(limit, 30));
-      if (ranking.length === 0) {
-        return msg.reply("📊 아직 가위바위보 전적이 없습니다.");
-      }
-
-      const lines = ranking.map((row, idx) => (
-        `${idx + 1}. <@${row.userId}> - ${row.wins}승 ${row.losses}패 ${row.draws}무 (${row.games}전) | 승률 ${formatRankingWinRate(row)}${idx === 0 ? " 🤫" : ""}`
-      ));
-      return msg.reply(`🏆 가위바위보 랭킹 TOP ${ranking.length}\n${lines.join("\n")}`);
-    }
-
-    const userChoice = normalizeRpsChoice(rpsArg);
-    if (!userChoice) {
-      return msg.reply(
-        "⚠️ 사용법: `!가위바위보 가위|바위|보`, `!가위바위보 전적`, `!가위바위보 랭킹 [N]`"
-      );
-    }
-
-    const botChoice = ["가위", "바위", "보"][Math.floor(Math.random() * 3)];
-    const result = evaluateRps(userChoice, botChoice);
-    const record = await updateRpsStatsForUser(msg.author.id, result);
-    const requesterName = (
-      msg.member?.displayName ||
-      msg.author.globalName ||
-      msg.author.username ||
-      "플레이어"
-    ).trim();
-    return msg.reply(
-      `${requesterName}${rpsChoiceEmoji(userChoice)} vs ${rpsChoiceEmoji(botChoice)} = ${rpsResultEmoji(result)} ${result}\n📈 ${formatRpsRecord(record)}`
-    );
   }
 
   if (content === "!기동") {

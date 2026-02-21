@@ -11,9 +11,6 @@ services:
       STATUS_CHANNEL_ID: ""
       WATCHTOWER_IMAGE: "containrrr/watchtower:latest"
       BOT_IMAGE_REF: "ghcr.io/mtgvim/palworld-server-bot:latest"
-      RPS_STATS_PATH: "/app/data/rps-stats.json"
-      RPS_PERSIST_LOG_INTERVAL: "20"
-      RPS_RANKING_MIN_GAMES_FOR_WIN_RATE: "10"
 
       # 플레이어 조회/유휴 경고 설정
       AUTO_PAUSE_TIMEOUT: "300"
@@ -29,7 +26,5 @@ services:
       RCON_PASSWORD: "여기에_RCON_비밀번호"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      # RPS 전적 영속화 필수: 컨테이너 교체/재시작 후에도 /app/data 유지
-      - ./data:/app/data
     labels:
       - com.centurylinklabs.watchtower.enable=true

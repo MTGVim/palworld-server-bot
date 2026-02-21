@@ -8,6 +8,6 @@ RUN apk add --no-cache docker-cli
 COPY package.json yarn.lock ./
 RUN yarn install --production
 
-COPY index.js idle-warning-decision.js rps-core.js package.json ./
+COPY index.js idle-warning-decision.js package.json ./
 
 CMD ["node", "index.js"]

@@ -14,7 +14,6 @@
 - Docker 데몬이 동작 중일 것
 - Node.js 20 (이미지는 `node:20-alpine` 사용)
 - Discord 봇 토큰
-- Discord Developer Portal에서 `SERVER MEMBERS INTENT`, `PRESENCE INTENT` 활성화 (`!추첨`용)
 - 팔월드 서버 관리자 API가 활성화된 컨테이너 (`palworld-server`)
 
 ---
@@ -33,9 +32,6 @@
 | `STATUS_CHANNEL_ID` | 아니오 | `""` | 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID |
 | `WATCHTOWER_IMAGE` | 아니오 | `containrrr/watchtower:latest` | 1회 업데이트 실행 시 사용할 Watchtower 이미지 |
 | `BOT_IMAGE_REF` | 아니오 | `ghcr.io/mtgvim/palworld-server-bot:latest` | `!봇 버전` 조회 시 기본 대상 이미지 ref |
-| `RPS_STATS_PATH` | 아니오 | `/app/data/rps-stats.json` | `!가위바위보` 전적 저장 파일 경로 |
-| `RPS_PERSIST_LOG_INTERVAL` | 아니오 | `20` | 전적 저장 성공 로그 출력 간격(쓰기 횟수 기준, `0` 이하면 첫 저장만 로그) |
-| `RPS_RANKING_MIN_GAMES_FOR_WIN_RATE` | 아니오 | `10` | `!가위바위보 랭킹`에서 승률 표시를 시작할 최소 경기수 (미만은 예: `10판 미만 🐥`) |
 | `AUTO_PAUSE_TIMEOUT` | 아니오 | `300` | 유휴 경고 기준 시간(초) |
 | `CHECK_INTERVAL` | 아니오 | `10000` | 접속자 체크 주기(ms) |
 | `PLAYERS_API_TIMEOUT_MS` | 아니오 | `5000` | 접속자 API 타임아웃(ms) |
@@ -85,10 +81,6 @@ docker run --rm \
 
 `docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker unpause/pause/restart` 명령으로
 `palworld-server` 컨테이너를 제어하도록 구성되어 있습니다.
-또한 `./data:/app/data` 볼륨을 사용해 `!가위바위보` 전적 파일을 재시작 후에도 유지합니다.
-또한 `com.centurylinklabs.watchtower.enable=true` 라벨을 사용해 `!봇 업데이트` 대상 컨테이너를 명시합니다.
-`RPS_STATS_PATH`는 `/app/data/` 하위 경로를 권장합니다(다른 경로면 컨테이너 교체 시 유실 가능).
-
 자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 `⚠️ N분동안 접속자가 없습니다.` 경고를 1회만 전송합니다.
 경고는 `!기동`으로 서버를 다시 기동하면 초기화됩니다.
 `palworld-server` 일시중지 상태 로그는 루프마다 반복하지 않고 상태 전환 시 1회만 출력합니다.
@@ -102,46 +94,8 @@ docker run --rm \
 - `!일시중지`   : `docker pause palworld-server`
 - `!재시작`     : `docker restart palworld-server`
 - `!상태`       : 현재 실행/일시중지 상태와 접속자 수 표시
-- `!접속자`     : 현재 접속 중인 플레이어 목록 출력
-- `!추첨 [N]`   : 온라인 Discord 유저(봇 제외) 중 1명 또는 N명 랜덤 추첨
-- `!가위바위보 <가위|바위|보>` : 봇과 가위바위보 1회 진행 (형식: `닉네임+내선택` vs `봇선택`, 결과 `🎉/🥹/🤝`)
-- `!가위바위보 전적` : 내 기록(승/패/무/판수/승률) 조회
-- `!가위바위보 랭킹 [N]` : 승률 기준 상위 랭킹 조회 (기본 10명, 최소 경기수 미만은 예: `10판 미만 🐥`, 1등은 `🤫`)
+- `!접속자`       : 현재 접속 중인 플레이어 목록 출력
 - `!봇 버전`    : 현재 실행 중인 봇 이미지 정보(이미지명/sha/생성시각 + GHCR 링크, 링크 미리보기 없음) 조회
 - `!봇 업데이트`: Watchtower 1회 실행으로 라벨 대상 컨테이너 업데이트 확인/적용 후 Created/Revision 요약 표시 (관리자 전용)
 
 ---
-
-## 가위바위보 전적 영속화 점검
-
-전적 유실이 의심되면 아래 순서로 확인합니다.
-
-1. 봇 로그에서 저장소 상태 로그 확인
-- `[rps][INFO] 전적 저장소 준비 완료: ... path=... writable=... fileExists=... users=... games=...`
-- `[rps][OK] 전적 저장 마운트를 확인했습니다: type=... src=... dst=... rw=...`
-- `[rps][OK] 전적 저장 성공: path=... writes=... bytes=...`
-- `[rps][WARN] ...`이 나오면 바로 뒤 `[rps][ACTION] ...` 안내를 그대로 적용한다.
-
-2. 호스트 파일 확인
-```bash
-ls -l ./data/rps-stats.json
-cat ./data/rps-stats.json
-```
-
-3. 컨테이너 마운트 확인
-```bash
-docker inspect palbot --format '{{json .Mounts}}'
-docker inspect palbot --format '{{range .Config.Env}}{{println .}}{{end}}' | grep RPS_STATS_PATH
-```
-
-4. 재시작/업데이트 후 전적 재확인
-- `docker compose restart palbot` 또는 `!봇 업데이트` 실행
-- `!가위바위보 전적`으로 값 유지 여부 확인
-
-5. 컨테이너가 `Cannot find module './rps-core'`로 실패하면
-- 구버전 이미지가 실행 중이라는 뜻이다.
-- 최신 이미지를 다시 받아 재기동한다.
-```bash
-docker compose pull palbot
-docker compose up -d palbot
-```
