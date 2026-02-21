@@ -28,9 +28,8 @@
 | `SERVER_URL` | 예 | - | 팔월드 서버 관리자 API 엔드포인트 (예: `http://172.17.0.1:8212`) |
 | `ADMIN_PASSWORD` | 예 | - | 관리자 비밀번호 (HTTP Basic Auth용) |
 | `ADMIN_USER_IDS` | 아니오 | `""` | `!봇 업데이트` 실행 권한을 가진 Discord 사용자 ID 목록 (쉼표 구분) |
-| `ALLOWED_CHANNEL_IDS` | 아니오 | `""` | 봇이 반응할 채널 ID 목록(쉼표 구분). 빈 값이면 모든 채널 허용 |
+| `ALLOWED_CHANNEL_ID` | 아니오 | `""` | 봇이 반응할 단일 채널 ID. 빈 값이면 모든 채널 허용 |
 | `BOT_UPDATE_ENABLED` | 아니오 | `false` | 봇 업데이트 명령 활성화 여부 (`true`/`false`) |
-| `STATUS_CHANNEL_ID` | 아니오 | `""` | 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID |
 | `WATCHTOWER_IMAGE` | 아니오 | `containrrr/watchtower:latest` | 1회 업데이트 실행 시 사용할 Watchtower 이미지 |
 | `WATCHTOWER_SCOPE` | 아니오 | `palworld-server-bot` | Watchtower one-shot에서 갱신 대상 스코프(라벨 `com.centurylinklabs.watchtower.scope`) |
 | `BOT_IMAGE_REF` | 아니오 | `ghcr.io/mtgvim/palworld-server-bot:latest` | `!봇 버전` 조회 시 기본 대상 이미지 ref |
@@ -99,8 +98,8 @@ docker run --rm \
 5. 봇 인텐트에서 `Message Content` 켜기 (`!도움`, `!기동` 등 텍스트 명령 수신용)
 
 운영 체크
-- 두 봇이 같은 채널에서 같은 커맨드(`!도움` 등)로 울리는 일이 생기면 각 봇의 `ALLOWED_CHANNEL_IDS`를 다르게 지정
-- `ALLOWED_CHANNEL_IDS` 예시: `111111111111111111,222222222222222222`
+- 두 봇이 같은 채널에서 같은 커맨드(`!도움` 등)로 울리는 일이 생기면 각 봇의 `ALLOWED_CHANNEL_ID`를 다르게 지정
+- `ALLOWED_CHANNEL_ID` 예시: `111111111111111111`
 - 빈 값이면 모든 채널에서 반응
 - 권한/인텐트 누락은 `/` 명령이 없어도 텍스트 메시지 수신이 안 돼서 “봇이 죽은 것처럼” 보일 수 있음
 

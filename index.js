@@ -30,13 +30,12 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
-const ALLOWED_CHANNEL_IDS = new Set(
-  (process.env.ALLOWED_CHANNEL_IDS || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-);
-const STATUS_CHANNEL_ID = (process.env.STATUS_CHANNEL_ID || "").trim();
+const ALLOWED_CHANNEL_ID = String(
+  process.env.ALLOWED_CHANNEL_ID || ""
+)
+  .trim()
+  .split(",")[0]
+  .trim();
 const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
 const WATCHTOWER_SCOPE = (process.env.WATCHTOWER_SCOPE || "palworld-server-bot").trim();
 const BOT_IMAGE_REF = (process.env.BOT_IMAGE_REF || "ghcr.io/mtgvim/palworld-server-bot:latest").trim();
@@ -243,7 +242,7 @@ function formatBootVersionMessage(versionInfo) {
     "ℹ️ 봇이 재시작되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${shortRevision(versionInfo.revision)}\n` +
-    "- 가이드: `!도움`으로 명령어 목록 확인"
+    `\n${getAvailableCommandsMessage()}`
   );
 }
 
@@ -262,14 +261,14 @@ function formatUpdateSummaryMessage(versionInfo) {
 function getAvailableCommandsMessage() {
   return (
     "📌 사용 가능한 명령어\n" +
-    "!도움\n" +
-    "!기동\n" +
-    "!일시중지\n" +
-    "!재시작\n" +
-    "!상태\n" +
-    "!접속자\n" +
-    "!봇 버전\n" +
-    "!봇 업데이트"
+    "- `!도움` : 명령어 목록\n" +
+    "- `!기동` : 서버 기동\n" +
+    "- `!일시중지` : 서버 일시중지\n" +
+    "- `!재시작` : 서버 재시작\n" +
+    "- `!상태` : 서버 상태 조회\n" +
+    "- `!접속자` : 접속자 목록 조회\n" +
+    "- `!봇 버전` : 봇 이미지 정보 조회\n" +
+    "- `!봇 업데이트` : watchtower 1회 실행으로 업데이트"
   );
 }
 
@@ -660,19 +659,19 @@ const client = new Client({
   ],
 });
 
-client.on("clientReady", async () => {
+client.on("ready", async () => {
   console.log("봇 준비 완료");
   const versionInfo = await getBotVersionInfo();
   console.log("[version] ready info:", formatBootVersionMessage(versionInfo));
 
-  if (!STATUS_CHANNEL_ID) {
+  if (!ALLOWED_CHANNEL_ID) {
     return;
   }
 
   try {
-    const statusChannel = await client.channels.fetch(STATUS_CHANNEL_ID);
+    const statusChannel = await client.channels.fetch(ALLOWED_CHANNEL_ID);
     if (!statusChannel || !statusChannel.isTextBased()) {
-      console.log("[version] STATUS_CHANNEL_ID is not a text channel.");
+      console.log("[version] allowed channel is not a text channel.");
       return;
     }
     await statusChannel.send(formatBootVersionMessage(versionInfo));
@@ -687,7 +686,7 @@ client.on("error", (err) => {
 
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot) return;
-  if (ALLOWED_CHANNEL_IDS.size > 0 && !ALLOWED_CHANNEL_IDS.has(msg.channelId)) return;
+  if (ALLOWED_CHANNEL_ID && msg.channelId !== ALLOWED_CHANNEL_ID) return;
   const content = msg.content.trim();
 
   if (!botChannel) botChannel = msg.channel;
