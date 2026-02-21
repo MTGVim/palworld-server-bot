@@ -258,7 +258,7 @@ function formatVersionMessage(versionInfo) {
     `- Image: ${versionInfo.configuredImage}\n` +
     `- Image ID: ${versionInfo.imageId}\n` +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
-    `- Revision: ${versionInfo.revision}\n` +
+    `- Revision: ${shortRevision(versionInfo.revision)}\n` +
     `- Ref(commit): ${versionInfo.commitRef}\n` +
     `- Ref(digest): ${versionInfo.digestRef}\n` +
     `- GHCR: [이미지 링크](${ghcrUrl})`
@@ -273,7 +273,7 @@ function formatBootVersionMessage(versionInfo) {
   return (
     "ℹ️ 봇이 재시작되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
-    `- Revision: ${versionInfo.revision}\n` +
+    `- Revision: ${shortRevision(versionInfo.revision)}\n` +
     "- 가이드: `!도움`으로 명령어 목록 확인"
   );
 }
@@ -286,8 +286,17 @@ function formatUpdateSummaryMessage(versionInfo) {
   return (
     "업데이트 확인이 완료되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
-    `- Revision: ${versionInfo.revision}`
+    `- Revision: ${shortRevision(versionInfo.revision)}`
   );
+}
+
+function shortRevision(revision) {
+  const value = String(revision || "").trim();
+  if (!value || value === "(unknown)") return value || "(unknown)";
+  if (/^[a-f0-9]{7,}$/i.test(value)) {
+    return value.slice(0, 7);
+  }
+  return value;
 }
 
 function formatCreatedAtSeoul(createdAt) {
@@ -389,6 +398,10 @@ function formatBojTier(level) {
   const band = bands[bandIndex] || "Tier";
   const number = 6 - withinBand;
   return `${band} ${number}`;
+}
+
+function hasKoreanCharacters(value) {
+  return /[가-힣]/.test(String(value || ""));
 }
 
 function resolveLeetTodayTimeZone() {
@@ -524,7 +537,9 @@ async function pickLeetRandomQuestion(difficulty) {
   if (pool.length === 0) {
     throw new Error("문제 목록이 비어 있습니다.");
   }
-  const picked = pool[Math.floor(Math.random() * pool.length)];
+  const koreanPool = pool.filter((item) => hasKoreanCharacters(item.titleKo));
+  const pickedPool = koreanPool.length > 0 ? koreanPool : pool;
+  const picked = pickedPool[Math.floor(Math.random() * pickedPool.length)];
   return {
     title: String(picked.titleKo || picked.title || `BOJ ${picked.problemId}`),
     problemId: picked.problemId,
