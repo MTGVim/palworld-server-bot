@@ -1270,9 +1270,7 @@ client.on("messageCreate", async (msg) => {
     }
 
     updateInProgress = true;
-    await msg.reply(
-      "🔄 봇 이미지 업데이트 확인을 시작합니다.\n완료 전에 봇이 재시작될 수 있습니다."
-    );
+    await msg.reply("🔄 봇 이미지 업데이트 확인을 시작하고 봇을 재시작합니다.");
 
     try {
       const runOnceCommand = getWatchtowerRunOnceCommand();
