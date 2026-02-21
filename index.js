@@ -47,6 +47,10 @@ const RPS_PERSIST_LOG_INTERVAL = parseInt(
   process.env.RPS_PERSIST_LOG_INTERVAL || "20",
   10
 );
+const RPS_RANKING_MIN_GAMES_FOR_WIN_RATE = parseInt(
+  process.env.RPS_RANKING_MIN_GAMES_FOR_WIN_RATE || "10",
+  10
+);
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -638,6 +642,14 @@ function getRpsRanking(limit) {
     .slice(0, limit);
 }
 
+function formatRankingWinRate(row) {
+  const minGames = Number.isInteger(RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
+    ? Math.max(1, RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
+    : 10;
+  if (row.games < minGames) return "-";
+  return `${((row.wins / row.games) * 100).toFixed(1)}%`;
+}
+
 function getWatchtowerRunOnceCommand() {
   if (!isSafeDockerRef(WATCHTOWER_IMAGE)) {
     throw new Error(
@@ -1043,7 +1055,7 @@ client.on("messageCreate", async (msg) => {
       }
 
       const lines = ranking.map((row, idx) => (
-        `${idx + 1}. <@${row.userId}> - ${row.wins}승 ${row.losses}패 ${row.draws}무 (${row.games}전)`
+        `${idx + 1}. <@${row.userId}> - ${row.wins}승 ${row.losses}패 ${row.draws}무 (${row.games}전) | 승률 ${formatRankingWinRate(row)}${idx === 0 ? " 🤫" : ""}`
       ));
       return msg.reply(`🏆 가위바위보 랭킹 TOP ${ranking.length}\n${lines.join("\n")}`);
     }

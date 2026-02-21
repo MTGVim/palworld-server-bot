@@ -13,6 +13,7 @@ services:
       BOT_IMAGE_REF: "ghcr.io/mtgvim/palworld-server-bot:latest"
       RPS_STATS_PATH: "/app/data/rps-stats.json"
       RPS_PERSIST_LOG_INTERVAL: "20"
+      RPS_RANKING_MIN_GAMES_FOR_WIN_RATE: "10"
 
       # 플레이어 조회/유휴 경고 설정
       AUTO_PAUSE_TIMEOUT: "300"
