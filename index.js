@@ -911,7 +911,7 @@ client.on("messageCreate", async (msg) => {
     const result = evaluateRps(userChoice, botChoice);
     const record = await updateRpsStatsForUser(msg.author.id, result);
     return msg.reply(
-      `✊ 가위바위보\n${rpsChoiceEmoji(userChoice)} 당신 vs ${rpsChoiceEmoji(botChoice)} 봇 = ${rpsResultEmoji(result)} ${result}\n- 누적: ${formatRpsRecord(record)}`
+      `${rpsChoiceEmoji(userChoice)} 당신 vs ${rpsChoiceEmoji(botChoice)} 봇 = ${rpsResultEmoji(result)} ${result}\n- 누적: ${formatRpsRecord(record)}`
     );
   }
 
