@@ -128,6 +128,10 @@ function isSafeDockerRef(value) {
 }
 
 function isAuthorizedUpdater(userId) {
+  const adminAuth = requireAdminAuthorization(userId);
+  if (!adminAuth.ok) {
+    return adminAuth;
+  }
   if (!BOT_UPDATE_ENABLED) {
     return {
       ok: false,
@@ -135,12 +139,15 @@ function isAuthorizedUpdater(userId) {
         "⚠️ 봇 업데이트 기능이 비활성화되어 있습니다. `BOT_UPDATE_ENABLED=true`로 설정해주세요.",
     };
   }
+  return { ok: true };
+}
 
+function requireAdminAuthorization(userId) {
   if (ADMIN_USER_IDS.length === 0) {
     return {
       ok: false,
       message:
-        "⚠️ 업데이트 권한자가 설정되지 않았습니다. `ADMIN_USER_IDS`에 Discord 사용자 ID를 지정해주세요.",
+        "⚠️ 관리자 권한자가 설정되지 않았습니다. `ADMIN_USER_IDS`에 Discord 사용자 ID를 지정해주세요.",
     };
   }
 
@@ -1173,7 +1180,7 @@ client.on("messageCreate", async (msg) => {
   if (content === "!도움") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!도움\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!랜덤문제 [쉬움|중간|어려움]\n!오늘의문제 [(쉬움|중간|어려움)]\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
+        "!도움\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!랜덤 문제 [쉬움|중간|어려움]\n!오늘의 문제 [(쉬움|중간|어려움)]\n!오늘의 문제 리셋 (관리자)\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
     );
   }
 
@@ -1246,29 +1253,53 @@ client.on("messageCreate", async (msg) => {
     );
   }
 
-  const randomQuestionMatch = content.match(/^!랜덤문제(?:\s+(.+))?$/);
+  const randomQuestionMatch = content.match(/^!(?:랜덤문제|랜덤\s+문제)(?:\s+(.+))?$/);
   if (randomQuestionMatch) {
     const difficultyArg = String(randomQuestionMatch[1] || "").trim();
     const difficulty = normalizeLeetDifficulty(difficultyArg);
     if (!difficulty) {
-      return msg.reply("⚠️ 사용법: `!랜덤문제 [쉬움|중간|어려움]`");
+      return msg.reply("⚠️ 사용법: `!랜덤 문제 [쉬움|중간|어려움]`");
     }
 
     try {
       const question = await pickLeetRandomQuestion(difficulty);
       return msg.reply(formatLeetQuestionLine("🎲 랜덤문제", difficulty, question));
     } catch (err) {
-      console.log("[boj][WARN] !랜덤문제 실패:", err.message);
+      console.log("[boj][WARN] !랜덤 문제 실패:", err.message);
       return msg.reply(`⚠️ 랜덤문제 조회 실패: ${err.message}`);
     }
   }
 
-  const todayQuestionMatch = content.match(/^!오늘의문제(?:\s+\(([^)]+)\)|\s+(.+))?$/);
+  const todayQuestionMatch = content.match(/^!(?:오늘의문제|오늘의\s+문제)(?:\s+\(([^)]+)\)|\s+(.+))?$/);
   if (todayQuestionMatch) {
     const rawArg = String(todayQuestionMatch[1] || todayQuestionMatch[2] || "").trim();
+    const normalizedArg = rawArg.replace(/\s+/g, "").toLowerCase();
+    if (["리셋", "reset"].includes(normalizedArg)) {
+      const adminAuth = requireAdminAuthorization(msg.author.id);
+      if (!adminAuth.ok) {
+        return msg.reply(adminAuth.message);
+      }
+      const timezone = resolveLeetTodayTimeZone();
+      const dateKey = getDateKeyInTimeZone(new Date(), timezone);
+      try {
+        await enqueueLeetTodayTask(async () => {
+          await ensureLeetTodayLoaded();
+          if (!leetTodayCache.byDate || typeof leetTodayCache.byDate !== "object") {
+            leetTodayCache.byDate = {};
+          }
+          delete leetTodayCache.byDate[dateKey];
+          await persistLeetTodayCache();
+        });
+        console.log(`[boj][INFO] 오늘의문제 리셋 완료: date=${dateKey} by=${msg.author.id}`);
+        return msg.reply(`🧹 오늘의문제를 리셋했습니다. (${dateKey}, ${timezone})`);
+      } catch (err) {
+        console.log("[boj][WARN] !오늘의 문제 리셋 실패:", err.message);
+        return msg.reply(`⚠️ 오늘의문제 리셋 실패: ${err.message}`);
+      }
+    }
     const difficulty = normalizeLeetDifficulty(rawArg);
     if (!difficulty) {
-      return msg.reply("⚠️ 사용법: `!오늘의문제`, `!오늘의문제 (중간)`");
+      return msg.reply("⚠️ 사용법: `!오늘의 문제`, `!오늘의 문제 (중간)`, `!오늘의 문제 리셋`");
     }
 
     const timezone = resolveLeetTodayTimeZone();
@@ -1305,7 +1336,7 @@ client.on("messageCreate", async (msg) => {
         : `📌 오늘의문제 확정 (${dateKey}, ${timezone})`;
       return msg.reply(formatLeetQuestionLine(header, difficulty, selected.question));
     } catch (err) {
-      console.log("[boj][WARN] !오늘의문제 실패:", err.message);
+      console.log("[boj][WARN] !오늘의 문제 실패:", err.message);
       return msg.reply(`⚠️ 오늘의문제 조회 실패: ${err.message}`);
     }
   }
