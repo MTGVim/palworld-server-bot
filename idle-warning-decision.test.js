@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { evaluateAutoPauseDecision } = require("./pause-decision-guard");
+const { evaluateIdleWarningDecision } = require("./idle-warning-decision");
 
 function runTest(name, fn) {
   try {
@@ -11,8 +11,8 @@ function runTest(name, fn) {
   }
 }
 
-runTest("does not pause when refreshed player count is greater than zero", () => {
-  const result = evaluateAutoPauseDecision({
+runTest("does not warn when refreshed player count is greater than zero", () => {
+  const result = evaluateIdleWarningDecision({
     uptimeMs: 31 * 60 * 1000,
     thresholdMs: 30 * 60 * 1000,
     cachedPlayerCount: 0,
@@ -22,13 +22,13 @@ runTest("does not pause when refreshed player count is greater than zero", () =>
     stableZeroRequiredSamples: 2,
   });
 
-  assert.equal(result.shouldPause, false);
+  assert.equal(result.shouldWarn, false);
   assert.equal(result.reason, "ACTIVE_PLAYERS");
 });
 
-runTest("pauses when player count is stable zero", () => {
+runTest("warns when player count is stable zero", () => {
   const now = Date.now();
-  const result = evaluateAutoPauseDecision({
+  const result = evaluateIdleWarningDecision({
     uptimeMs: 31 * 60 * 1000,
     thresholdMs: 30 * 60 * 1000,
     cachedPlayerCount: 0,
@@ -40,13 +40,13 @@ runTest("pauses when player count is stable zero", () => {
     nonZeroGraceMs: 20 * 1000,
   });
 
-  assert.equal(result.shouldPause, true);
+  assert.equal(result.shouldWarn, true);
   assert.equal(result.reason, "NO_PLAYERS_STABLE");
 });
 
-runTest("does not pause during grace window after recent active players", () => {
+runTest("does not warn during grace window after recent active players", () => {
   const now = Date.now();
-  const result = evaluateAutoPauseDecision({
+  const result = evaluateIdleWarningDecision({
     uptimeMs: 31 * 60 * 1000,
     thresholdMs: 30 * 60 * 1000,
     cachedPlayerCount: 0,
@@ -58,12 +58,12 @@ runTest("does not pause during grace window after recent active players", () => 
     nonZeroGraceMs: 20 * 1000,
   });
 
-  assert.equal(result.shouldPause, false);
+  assert.equal(result.shouldWarn, false);
   assert.equal(result.reason, "ACTIVE_PLAYERS_RECENTLY");
 });
 
-runTest("does not pause below protection threshold", () => {
-  const result = evaluateAutoPauseDecision({
+runTest("does not warn below protection threshold", () => {
+  const result = evaluateIdleWarningDecision({
     uptimeMs: 29 * 60 * 1000,
     thresholdMs: 30 * 60 * 1000,
     cachedPlayerCount: 0,
@@ -73,6 +73,6 @@ runTest("does not pause below protection threshold", () => {
     stableZeroRequiredSamples: 2,
   });
 
-  assert.equal(result.shouldPause, false);
+  assert.equal(result.shouldWarn, false);
   assert.equal(result.reason, "BELOW_THRESHOLD");
 });

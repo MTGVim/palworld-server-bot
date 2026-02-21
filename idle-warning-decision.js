@@ -1,4 +1,4 @@
-function evaluateAutoPauseDecision(context) {
+function evaluateIdleWarningDecision(context) {
   const {
     uptimeMs,
     thresholdMs,
@@ -14,7 +14,7 @@ function evaluateAutoPauseDecision(context) {
 
   if (uptimeMs < thresholdMs) {
     return {
-      shouldPause: false,
+      shouldWarn: false,
       reason: "BELOW_THRESHOLD",
       evidence: { uptimeMs, thresholdMs },
     };
@@ -22,7 +22,7 @@ function evaluateAutoPauseDecision(context) {
 
   if (!refreshedFetchOk) {
     return {
-      shouldPause: false,
+      shouldWarn: false,
       reason: "STALE_STATE",
       evidence: { refreshedFetchOk },
     };
@@ -30,7 +30,7 @@ function evaluateAutoPauseDecision(context) {
 
   if (cachedPlayerCount > 0 || refreshedPlayerCount > 0) {
     return {
-      shouldPause: false,
+      shouldWarn: false,
       reason: "ACTIVE_PLAYERS",
       evidence: { cachedPlayerCount, refreshedPlayerCount },
     };
@@ -41,7 +41,7 @@ function evaluateAutoPauseDecision(context) {
     nowMs - lastNonZeroSeenAt <= nonZeroGraceMs
   ) {
     return {
-      shouldPause: false,
+      shouldWarn: false,
       reason: "ACTIVE_PLAYERS_RECENTLY",
       evidence: { lastNonZeroSeenAt, nonZeroGraceMs },
     };
@@ -54,7 +54,7 @@ function evaluateAutoPauseDecision(context) {
 
   if (recent.length < stableZeroRequiredSamples || !stableZero) {
     return {
-      shouldPause: false,
+      shouldWarn: false,
       reason: "NO_PLAYERS_NOT_STABLE",
       evidence: {
         recentSamples: recent,
@@ -64,7 +64,7 @@ function evaluateAutoPauseDecision(context) {
   }
 
   return {
-    shouldPause: true,
+    shouldWarn: true,
     reason: "NO_PLAYERS_STABLE",
     evidence: {
       recentSamples: recent,
@@ -74,5 +74,5 @@ function evaluateAutoPauseDecision(context) {
 }
 
 module.exports = {
-  evaluateAutoPauseDecision,
+  evaluateIdleWarningDecision,
 };

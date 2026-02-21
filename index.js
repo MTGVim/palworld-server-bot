@@ -2,7 +2,7 @@ const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
 const fs = require("fs/promises");
 const path = require("path");
-const { evaluateAutoPauseDecision } = require("./pause-decision-guard");
+const { evaluateIdleWarningDecision } = require("./idle-warning-decision");
 
 const bootTime = Date.now();
 
@@ -679,7 +679,7 @@ setInterval(async () => {
       }
     } else {
       console.log(
-        "[loop] players fetch failed. skipping auto pause decision this cycle."
+        "[loop] players fetch failed. skipping idle warning decision this cycle."
       );
       return;
     }
@@ -695,7 +695,7 @@ setInterval(async () => {
       const verifyNow = Date.now();
       if (!verifySnapshot.ok) {
         console.log(
-          "[loop] pre-pause verification failed. skipping auto pause."
+          "[loop] pre-warning verification failed. skipping idle warning."
         );
         return;
       }
@@ -706,7 +706,7 @@ setInterval(async () => {
         lastNonZeroSeenAt = verifyNow;
       }
 
-      const decision = evaluateAutoPauseDecision({
+      const decision = evaluateIdleWarningDecision({
         uptimeMs: verifyNow - bootTime,
         thresholdMs: 0,
         cachedPlayerCount: snapshot.count,
@@ -720,11 +720,11 @@ setInterval(async () => {
       });
 
       console.log(
-        "[loop] pause decision:",
+        "[loop] idle warning decision:",
         decision.reason,
         JSON.stringify(decision.evidence)
       );
-      if (!decision.shouldPause) {
+      if (!decision.shouldWarn) {
         return;
       }
 
