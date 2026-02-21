@@ -29,7 +29,6 @@
 | `ADMIN_PASSWORD` | 예 | - | 관리자 비밀번호 (HTTP Basic Auth용) |
 | `ADMIN_USER_IDS` | 아니오 | `""` | `!봇 업데이트` 실행 권한을 가진 Discord 사용자 ID 목록 (쉼표 구분) |
 | `ALLOWED_CHANNEL_ID` | 아니오 | `""` | 봇이 반응할 단일 채널 ID. 빈 값이면 모든 채널 허용 |
-| `BOT_UPDATE_ENABLED` | 아니오 | `false` | 봇 업데이트 명령 활성화 여부 (`true`/`false`) |
 | `WATCHTOWER_IMAGE` | 아니오 | `containrrr/watchtower:latest` | 1회 업데이트 실행 시 사용할 Watchtower 이미지 |
 | `WATCHTOWER_SCOPE` | 아니오 | `palworld-server-bot` | Watchtower one-shot에서 갱신 대상 스코프(라벨 `com.centurylinklabs.watchtower.scope`) |
 | `BOT_IMAGE_REF` | 아니오 | `ghcr.io/mtgvim/palworld-server-bot:latest` | `!봇 버전` 조회 시 기본 대상 이미지 ref |

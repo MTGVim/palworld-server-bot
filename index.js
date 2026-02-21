@@ -24,8 +24,6 @@ const PLAYERS_API_TIMEOUT_MS = parseInt(
   process.env.PLAYERS_API_TIMEOUT_MS || "5000",
   10
 );
-const BOT_UPDATE_ENABLED =
-  String(process.env.BOT_UPDATE_ENABLED || "false").toLowerCase() === "true";
 const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
   .split(",")
   .map((value) => value.trim())
@@ -141,13 +139,6 @@ function isAuthorizedUpdater(userId) {
   const adminAuth = requireAdminAuthorization(userId);
   if (!adminAuth.ok) {
     return adminAuth;
-  }
-  if (!BOT_UPDATE_ENABLED) {
-    return {
-      ok: false,
-      message:
-        "⚠️ 봇 업데이트 기능이 비활성화되어 있습니다. `BOT_UPDATE_ENABLED=true`로 설정해주세요.",
-    };
   }
   return { ok: true };
 }
