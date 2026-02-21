@@ -1,8 +1,15 @@
 const { Client, GatewayIntentBits } = require("discord.js");
 const { exec } = require("child_process");
+const { constants: FS_CONSTANTS } = require("fs");
 const fs = require("fs/promises");
 const path = require("path");
 const { evaluateIdleWarningDecision } = require("./idle-warning-decision");
+const {
+  createRpsPersistence,
+  evaluateRps,
+  getOrCreateRpsRecord,
+  normalizeRpsChoice,
+} = require("./rps-core");
 
 const bootTime = Date.now();
 
@@ -36,6 +43,10 @@ const BOT_IMAGE_REF = (process.env.BOT_IMAGE_REF || "ghcr.io/mtgvim/palworld-ser
 const RPS_STATS_PATH = (
   process.env.RPS_STATS_PATH || "/app/data/rps-stats.json"
 ).trim();
+const RPS_PERSIST_LOG_INTERVAL = parseInt(
+  process.env.RPS_PERSIST_LOG_INTERVAL || "20",
+  10
+);
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -48,7 +59,12 @@ let idleWarningSentSinceStartup = false;
 let updateInProgress = false;
 let rpsStats = {};
 let rpsStatsLoaded = false;
-let rpsStatsWriteQueue = Promise.resolve();
+const rpsPersistence = createRpsPersistence({
+  fs,
+  statsPath: RPS_STATS_PATH,
+  logInterval: RPS_PERSIST_LOG_INTERVAL,
+  logger: (line) => console.log(line),
+});
 
 function docker(cmd) {
   console.log("[docker] executing command:", cmd);
@@ -376,26 +392,6 @@ function pickRandomMembers(members, count) {
   return pool.slice(0, count);
 }
 
-function normalizeRpsChoice(raw) {
-  const value = String(raw || "").trim().toLowerCase();
-  if (value === "가위" || value === "scissors") return "가위";
-  if (value === "바위" || value === "rock") return "바위";
-  if (value === "보" || value === "paper") return "보";
-  return "";
-}
-
-function evaluateRps(userChoice, botChoice) {
-  if (userChoice === botChoice) return "무승부";
-  if (
-    (userChoice === "가위" && botChoice === "보") ||
-    (userChoice === "바위" && botChoice === "가위") ||
-    (userChoice === "보" && botChoice === "바위")
-  ) {
-    return "승리";
-  }
-  return "패배";
-}
-
 function rpsChoiceEmoji(choice) {
   if (choice === "가위") return "✌️";
   if (choice === "바위") return "✊";
@@ -414,61 +410,85 @@ async function ensureRpsStatsLoaded() {
     return;
   }
 
+  const dir = path.dirname(RPS_STATS_PATH);
+  let loadMode = "empty";
+
   try {
-    await fs.mkdir(path.dirname(RPS_STATS_PATH), { recursive: true });
+    await fs.mkdir(dir, { recursive: true });
     const raw = await fs.readFile(RPS_STATS_PATH, "utf8");
-    const parsed = safeJsonParse(raw, {});
-    rpsStats = parsed && typeof parsed === "object" ? parsed : {};
+    try {
+      const parsed = JSON.parse(raw);
+      rpsStats = parsed && typeof parsed === "object" ? parsed : {};
+      loadMode = "file";
+    } catch (parseErr) {
+      const brokenPath = `${RPS_STATS_PATH}.broken-${Date.now()}`;
+      console.log(
+        "[rps] invalid json detected. backing up broken file:",
+        brokenPath
+      );
+      try {
+        await fs.rename(RPS_STATS_PATH, brokenPath);
+      } catch (renameErr) {
+        console.log(
+          "[rps] failed to backup broken stats file:",
+          renameErr.message,
+          "| path:",
+          RPS_STATS_PATH
+        );
+      }
+      rpsStats = {};
+      loadMode = "recovered-empty";
+    }
   } catch (err) {
     if (err.code !== "ENOENT") {
-      console.log("[rps] failed to load stats file:", err.message);
+      console.log(
+        "[rps] failed to load stats file:",
+        err.message,
+        "| path:",
+        RPS_STATS_PATH
+      );
     }
     rpsStats = {};
   }
 
   rpsStatsLoaded = true;
-}
-
-function getOrCreateRpsRecord(userId) {
-  if (!rpsStats[userId] || typeof rpsStats[userId] !== "object") {
-    rpsStats[userId] = {
-      wins: 0,
-      losses: 0,
-      draws: 0,
-      games: 0,
-      updatedAt: new Date().toISOString(),
-    };
+  const users = Object.keys(rpsStats).length;
+  const totalGames = Object.values(rpsStats).reduce((sum, row) => (
+    sum + (Number.isFinite(row && row.games) ? row.games : 0)
+  ), 0);
+  let writable = true;
+  let fileExists = false;
+  let fileSize = 0;
+  try {
+    await fs.access(dir, FS_CONSTANTS.W_OK);
+  } catch {
+    writable = false;
   }
-
-  const record = rpsStats[userId];
-  record.wins = Number.isFinite(record.wins) ? record.wins : 0;
-  record.losses = Number.isFinite(record.losses) ? record.losses : 0;
-  record.draws = Number.isFinite(record.draws) ? record.draws : 0;
-  record.games = Number.isFinite(record.games) ? record.games : 0;
-  return record;
+  try {
+    const stat = await fs.stat(RPS_STATS_PATH);
+    fileExists = stat.isFile();
+    fileSize = stat.size;
+  } catch {
+    fileExists = false;
+  }
+  console.log(
+    `[rps] storage ready: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
+  );
+  if (!RPS_STATS_PATH.startsWith("/app/data/")) {
+    console.log(
+      "[rps] warning: RPS_STATS_PATH is outside /app/data. volume persistence may not work as expected:",
+      RPS_STATS_PATH
+    );
+  }
 }
 
 async function persistRpsStats() {
-  const snapshot = JSON.stringify(rpsStats, null, 2);
-  const dir = path.dirname(RPS_STATS_PATH);
-  const tempPath = `${RPS_STATS_PATH}.tmp`;
-
-  rpsStatsWriteQueue = rpsStatsWriteQueue
-    .then(async () => {
-      await fs.mkdir(dir, { recursive: true });
-      await fs.writeFile(tempPath, snapshot, "utf8");
-      await fs.rename(tempPath, RPS_STATS_PATH);
-    })
-    .catch((err) => {
-      console.log("[rps] failed to persist stats:", err.message);
-    });
-
-  await rpsStatsWriteQueue;
+  await rpsPersistence.persist(rpsStats);
 }
 
 async function updateRpsStatsForUser(userId, result) {
   await ensureRpsStatsLoaded();
-  const record = getOrCreateRpsRecord(userId);
+  const record = getOrCreateRpsRecord(rpsStats, userId);
   record.games += 1;
   if (result === "승리") record.wins += 1;
   if (result === "패배") record.losses += 1;
@@ -878,7 +898,7 @@ client.on("messageCreate", async (msg) => {
 
     const rpsArg = String(rpsMatch[1] || "").trim();
     if (rpsArg === "전적") {
-      const record = getOrCreateRpsRecord(msg.author.id);
+      const record = getOrCreateRpsRecord(rpsStats, msg.author.id);
       return msg.reply(`📊 <@${msg.author.id}> ${formatRpsRecord(record)}`);
     }
 
