@@ -138,3 +138,11 @@ docker inspect palbot --format '{{range .Config.Env}}{{println .}}{{end}}' | gre
 5. 재시작/업데이트 후 전적 재확인
 - `docker compose restart palbot` 또는 `!봇 업데이트` 실행
 - `!가위바위보 전적`으로 값 유지 여부 확인
+
+6. 컨테이너가 `Cannot find module './rps-core'`로 실패하면
+- 구버전 이미지가 실행 중이라는 뜻이다.
+- 최신 이미지를 다시 받아 재기동한다.
+```bash
+docker compose pull palbot
+docker compose up -d palbot
+```
