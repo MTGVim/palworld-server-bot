@@ -242,7 +242,7 @@ function formatBootVersionMessage(versionInfo) {
     "ℹ️ 봇이 재시작되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${shortRevision(versionInfo.revision)}\n` +
-    `\n${getAvailableCommandsMessage()}`
+    `\n\n${getAvailableCommandsMessage()}`
   );
 }
 
@@ -258,18 +258,27 @@ function formatUpdateSummaryMessage(versionInfo) {
   );
 }
 
-function getAvailableCommandsMessage() {
+function formatAvailableCommands(commands) {
   return (
     "📌 사용 가능한 명령어\n" +
-    "- `!도움` : 명령어 목록\n" +
-    "- `!기동` : 서버 기동\n" +
-    "- `!일시중지` : 서버 일시중지\n" +
-    "- `!재시작` : 서버 재시작\n" +
-    "- `!상태` : 서버 상태 조회\n" +
-    "- `!접속자` : 접속자 목록 조회\n" +
-    "- `!봇 버전` : 봇 이미지 정보 조회\n" +
-    "- `!봇 업데이트` : watchtower 1회 실행으로 업데이트"
+    commands
+      .map(({ command, description }) => `- \`${command}\` : ${description}`)
+      .join("\n")
   );
+}
+
+function getAvailableCommandsMessage() {
+  const commands = [
+    { command: "!도움", description: "명령어 목록" },
+    { command: "!기동", description: "서버 기동" },
+    { command: "!일시중지", description: "서버 일시중지" },
+    { command: "!재시작", description: "서버 재시작" },
+    { command: "!상태", description: "서버 상태 조회" },
+    { command: "!접속자", description: "접속자 목록 조회" },
+    { command: "!봇 버전", description: "봇 이미지 정보 조회" },
+    { command: "!봇 업데이트", description: "watchtower 1회 실행으로 업데이트" },
+  ];
+  return formatAvailableCommands(commands);
 }
 
 function shortRevision(revision) {
