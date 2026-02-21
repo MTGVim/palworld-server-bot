@@ -129,11 +129,13 @@ jobs:
           fi
           IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}"
           SHORT_SHA="${GITHUB_SHA::7}"
+          REVISION="revision=${SHORT_SHA}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           BOT_NAME="${{ env.DEPLOY_BOT_NAME }}"
           MSG=$(cat <<EOF
           🚀 도커 이미지 배포 완료 · ${SHORT_SHA}
           🤖 봇: ${BOT_NAME}
+          🔖 Revision: ${REVISION}
           📝 ${COMMIT_SUMMARY_LINE}
           📦 Image: ${IMAGE}
           🔗 [변경사항](${COMPARE_URL})
@@ -155,11 +157,13 @@ jobs:
             exit 0
           fi
           SHORT_SHA="${GITHUB_SHA::7}"
+          REVISION="revision=${SHORT_SHA}"
           BOT_NAME="${{ env.DEPLOY_BOT_NAME }}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
           ❌ 도커 이미지 배포 실패 · ${SHORT_SHA}
           🤖 봇: ${BOT_NAME}
+          🔖 Revision: ${REVISION}
           📝 ${COMMIT_SUMMARY_LINE}
           🔗 Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           🔗 [변경사항](${COMPARE_URL})
