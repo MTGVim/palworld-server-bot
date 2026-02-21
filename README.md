@@ -57,7 +57,7 @@ RCON 관련 변수는 선택적으로 설정할 수 있습니다.
 이 저장소에서는 CI/CD로 이미지가 빌드/배포됩니다.
 CI에서 OCI revision 라벨(`org.opencontainers.image.revision`)을 이미지에 포함하므로, 새로 배포된 이미지부터 `!봇 버전`의 `Revision`/`Ref(commit)` 값이 표시됩니다.
 과거 이미지나 라벨이 없는 이미지는 해당 값이 `(unknown)`으로 표시될 수 있습니다.
-또한 GitHub Actions는 이미지 push 이후 `docker buildx imagetools inspect`로 최대 30초(5초 간격, 6회) 전파 확인을 수행한 뒤, digest가 변경된 경우에만 Discord Webhook으로 성공 알림을 보냅니다(실패 알림은 항상 전송). 알림 제목은 `도커 이미지 배포 완료/실패` 형식이며, 본문은 단순 텍스트 + 중간 구분선(`───`) 포맷으로 `"!봇 업데이트"` 안내 문구, 최근 커밋 1개(one-line), 외 커밋 수, GitHub compare 링크를 포함합니다.
+또한 GitHub Actions는 이미지 push 이후 `docker buildx imagetools inspect`로 최대 30초(5초 간격, 6회) 전파 확인을 수행한 뒤, digest가 변경된 경우에만 Discord Webhook으로 성공 알림을 보냅니다(실패 알림은 항상 전송). 알림은 카드형 포맷으로 `도커 이미지 배포 완료/실패`, 최근 커밋 1개(one-line)와 외 커밋 수, `"!봇 업데이트"` 안내, GitHub compare 링크를 포함합니다.
 알림을 쓰려면 저장소 `Settings > Secrets and variables > Actions`에 `DISCORD_WEBHOOK_URL` 시크릿을 추가하세요.
 
 `!봇 업데이트` 명령은 상시 Watchtower 컨테이너를 띄우지 않고, 필요 시 `docker run ... watchtower --run-once --label-enable`를 1회 실행해

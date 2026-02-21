@@ -129,12 +129,9 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
-          🚀 도커 이미지 배포 완료 (${SHORT_SHA})
-
-          🤖 봇에 반영하려면 "!봇 업데이트"를 입력하세요.
-          ────────────────────────────────────────
+          🚀 도커 이미지 배포 완료 · ${SHORT_SHA}
           📝 ${COMMIT_SUMMARY_LINE}
-          ────────────────────────────────────────
+          🤖 반영: "!봇 업데이트"
           🔗 [변경사항](${COMPARE_URL})
           EOF
           )
@@ -156,9 +153,8 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
-          ❌ 도커 이미지 배포 실패 (${SHORT_SHA})
+          ❌ 도커 이미지 배포 실패 · ${SHORT_SHA}
           📝 ${COMMIT_SUMMARY_LINE}
-          ────────────────────────────────────────
           🔗 Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           🔗 [변경사항](${COMPARE_URL})
           EOF
