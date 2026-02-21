@@ -201,6 +201,8 @@ function formatVersionMessage(versionInfo) {
     return `ℹ️ ${versionInfo.message}`;
   }
 
+  const ghcrUrl = getImageRepositoryUrl(versionInfo.configuredImage);
+
   return (
     "ℹ️ 봇 버전 정보\n" +
     `- Image: ${versionInfo.configuredImage}\n` +
@@ -208,7 +210,8 @@ function formatVersionMessage(versionInfo) {
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${versionInfo.revision}\n` +
     `- Ref(commit): ${versionInfo.commitRef}\n` +
-    `- Ref(digest): ${versionInfo.digestRef}`
+    `- Ref(digest): ${versionInfo.digestRef}\n` +
+    `- GHCR: [이미지 링크](${ghcrUrl})`
   );
 }
 
@@ -258,6 +261,26 @@ function formatCreatedAtSeoul(createdAt) {
   }).format(date);
 
   return `${formatted} (Asia/Seoul, +09:00)`;
+}
+
+function getImageRepositoryUrl(imageRef) {
+  const fallback = "https://ghcr.io/mtgvim/palworld-server-bot";
+  if (!imageRef) {
+    return fallback;
+  }
+
+  const normalized = String(imageRef).trim().split("@")[0];
+  const lastSlash = normalized.lastIndexOf("/");
+  const lastColon = normalized.lastIndexOf(":");
+  const withoutTag = lastColon > lastSlash
+    ? normalized.slice(0, lastColon)
+    : normalized;
+  const repository = withoutTag.replace(/^https?:\/\//, "");
+  if (!repository) {
+    return fallback;
+  }
+
+  return `https://${repository}`;
 }
 
 function safeJsonParse(value, fallback) {
@@ -773,15 +796,11 @@ client.on("messageCreate", async (msg) => {
     `${msg.author.username}#${msg.author.discriminator}`
   );
 
-  if (content === "!명령어") {
+  if (content === "!도움") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!명령어\n!도움(deprecated)\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
+        "!도움\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
     );
-  }
-
-  if (content === "!도움") {
-    return msg.reply('⚠️ !도움(deprecated). "!명령어"를 사용하세요.');
   }
 
   if (content === "!봇 버전" || content === "!봇버전") {

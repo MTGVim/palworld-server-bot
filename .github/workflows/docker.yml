@@ -116,7 +116,7 @@ jobs:
           )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg content "$MSG" '{content:$content}')"
+            -d "$(jq -n --arg content "$MSG" '{content:$content,flags:4}')"
 
       - name: Notify Discord (failure)
         if: ${{ failure() }}
@@ -139,4 +139,4 @@ jobs:
           )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg content "$MSG" '{content:$content}')"
+            -d "$(jq -n --arg content "$MSG" '{content:$content,flags:4}')"
