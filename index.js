@@ -78,7 +78,7 @@ let rpsStats = {};
 let rpsStatsLoaded = false;
 let loopPausedNoticeShown = false;
 let leetTodayLoaded = false;
-let leetTodayCache = { byDate: {} };
+let leetTodayCache = { byDate: {}, recentByDifficulty: {} };
 let leetTodayQueue = Promise.resolve();
 const rpsPersistence = createRpsPersistence({
   fs,
@@ -404,6 +404,53 @@ function hasKoreanCharacters(value) {
   return /[가-힣]/.test(String(value || ""));
 }
 
+function ensureLeetTodayCacheShape() {
+  if (!leetTodayCache || typeof leetTodayCache !== "object") {
+    leetTodayCache = { byDate: {}, recentByDifficulty: {} };
+  }
+  if (!leetTodayCache.byDate || typeof leetTodayCache.byDate !== "object") {
+    leetTodayCache.byDate = {};
+  }
+  if (!leetTodayCache.recentByDifficulty || typeof leetTodayCache.recentByDifficulty !== "object") {
+    leetTodayCache.recentByDifficulty = {};
+  }
+}
+
+function getRecentHistoryForDifficulty(difficulty) {
+  ensureLeetTodayCacheShape();
+  const raw = leetTodayCache.recentByDifficulty[difficulty];
+  if (!Array.isArray(raw)) {
+    leetTodayCache.recentByDifficulty[difficulty] = [];
+    return leetTodayCache.recentByDifficulty[difficulty];
+  }
+  const normalized = raw
+    .map((value) => parseInt(String(value), 10))
+    .filter((value) => Number.isInteger(value) && value > 0);
+  leetTodayCache.recentByDifficulty[difficulty] = normalized;
+  return normalized;
+}
+
+function rememberTodayProblem(difficulty, problemId) {
+  const id = parseInt(String(problemId || ""), 10);
+  if (!Number.isInteger(id) || id <= 0) return;
+  const history = getRecentHistoryForDifficulty(difficulty);
+  const next = [id, ...history.filter((value) => value !== id)].slice(0, 120);
+  leetTodayCache.recentByDifficulty[difficulty] = next;
+}
+
+function collectExcludedTodayProblemIds(difficulty) {
+  ensureLeetTodayCacheShape();
+  const excluded = new Set(getRecentHistoryForDifficulty(difficulty));
+  for (const dayValue of Object.values(leetTodayCache.byDate)) {
+    if (!dayValue || typeof dayValue !== "object") continue;
+    const row = dayValue[difficulty];
+    if (!row || typeof row !== "object") continue;
+    const id = parseInt(String(row.problemId || ""), 10);
+    if (Number.isInteger(id) && id > 0) excluded.add(id);
+  }
+  return excluded;
+}
+
 function resolveLeetTodayTimeZone() {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: BOJ_TODAY_TIMEZONE }).format(new Date());
@@ -445,31 +492,30 @@ async function ensureLeetTodayLoaded() {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === "object" && parsed.byDate && typeof parsed.byDate === "object") {
         leetTodayCache = parsed;
+        ensureLeetTodayCacheShape();
         loadMode = "file";
       } else {
-        leetTodayCache = { byDate: {} };
+        leetTodayCache = { byDate: {}, recentByDifficulty: {} };
         loadMode = "invalid-reset";
       }
     } catch {
-      leetTodayCache = { byDate: {} };
+      leetTodayCache = { byDate: {}, recentByDifficulty: {} };
       loadMode = "invalid-reset";
     }
   } catch (err) {
     if (err.code !== "ENOENT") {
       console.log("[boj][WARN] 오늘의문제 캐시 로드 실패:", err.message, "| path:", BOJ_TODAY_CACHE_PATH);
     }
-    leetTodayCache = { byDate: {} };
+    leetTodayCache = { byDate: {}, recentByDifficulty: {} };
   }
 
+  ensureLeetTodayCacheShape();
   leetTodayLoaded = true;
   console.log(`[boj][INFO] 오늘의문제 캐시 준비 완료: mode=${loadMode} path=${BOJ_TODAY_CACHE_PATH}`);
 }
 
 function pruneLeetTodayCache(maxDays) {
-  if (!leetTodayCache.byDate || typeof leetTodayCache.byDate !== "object") {
-    leetTodayCache.byDate = {};
-    return;
-  }
+  ensureLeetTodayCacheShape();
   const keys = Object.keys(leetTodayCache.byDate).sort();
   while (keys.length > maxDays) {
     const oldest = keys.shift();
@@ -515,7 +561,10 @@ async function fetchBojProblemsPage(range, page) {
   return payload;
 }
 
-async function pickLeetRandomQuestion(difficulty) {
+async function pickLeetRandomQuestion(difficulty, options = {}) {
+  const excludedProblemIds = options.excludedProblemIds instanceof Set
+    ? options.excludedProblemIds
+    : new Set();
   const range = getBojTierRangeByDifficulty(difficulty);
   const firstPagePayload = await fetchBojProblemsPage(range, 1);
   const totalCount = Number(firstPagePayload.count);
@@ -526,25 +575,28 @@ async function pickLeetRandomQuestion(difficulty) {
 
   const pageSize = firstPagePayload.items.length > 0 ? firstPagePayload.items.length : 50;
   const maxPage = Math.max(1, Math.ceil(total / pageSize));
-  const randomPage = 1 + Math.floor(Math.random() * maxPage);
-  const targetPayload = randomPage === 1
-    ? firstPagePayload
-    : await fetchBojProblemsPage(range, randomPage);
-  let pool = targetPayload.items.filter((item) => Number.isInteger(item.problemId));
-  if (pool.length === 0 && randomPage !== 1) {
-    pool = firstPagePayload.items.filter((item) => Number.isInteger(item.problemId));
+  const maxRandomAttempts = Math.max(6, Math.min(maxPage, 12));
+  for (let attempt = 0; attempt < maxRandomAttempts; attempt += 1) {
+    const randomPage = 1 + Math.floor(Math.random() * maxPage);
+    const payload = randomPage === 1
+      ? firstPagePayload
+      : await fetchBojProblemsPage(range, randomPage);
+    const pool = payload.items
+      .filter((item) => Number.isInteger(item.problemId))
+      .filter((item) => hasKoreanCharacters(item.titleKo))
+      .filter((item) => !excludedProblemIds.has(item.problemId));
+    if (pool.length === 0) {
+      continue;
+    }
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    return {
+      title: String(picked.titleKo || picked.title || `BOJ ${picked.problemId}`),
+      problemId: picked.problemId,
+      level: Number.isInteger(picked.level) ? picked.level : 0,
+    };
   }
-  if (pool.length === 0) {
-    throw new Error("문제 목록이 비어 있습니다.");
-  }
-  const koreanPool = pool.filter((item) => hasKoreanCharacters(item.titleKo));
-  const pickedPool = koreanPool.length > 0 ? koreanPool : pool;
-  const picked = pickedPool[Math.floor(Math.random() * pickedPool.length)];
-  return {
-    title: String(picked.titleKo || picked.title || `BOJ ${picked.problemId}`),
-    problemId: picked.problemId,
-    level: Number.isInteger(picked.level) ? picked.level : 0,
-  };
+
+  throw new Error("조건(한글 제목/중복 제외)에 맞는 문제를 찾지 못했습니다.");
 }
 
 function formatLeetQuestionLine(prefix, difficulty, question) {
@@ -1299,8 +1351,14 @@ client.on("messageCreate", async (msg) => {
       try {
         await enqueueLeetTodayTask(async () => {
           await ensureLeetTodayLoaded();
-          if (!leetTodayCache.byDate || typeof leetTodayCache.byDate !== "object") {
-            leetTodayCache.byDate = {};
+          ensureLeetTodayCacheShape();
+          const dayBucket = leetTodayCache.byDate[dateKey];
+          if (dayBucket && typeof dayBucket === "object") {
+            for (const [difficulty, row] of Object.entries(dayBucket)) {
+              if (row && typeof row === "object" && Number.isInteger(row.problemId)) {
+                rememberTodayProblem(difficulty, row.problemId);
+              }
+            }
           }
           delete leetTodayCache.byDate[dateKey];
           await persistLeetTodayCache();
@@ -1322,9 +1380,7 @@ client.on("messageCreate", async (msg) => {
     try {
       const selected = await enqueueLeetTodayTask(async () => {
         await ensureLeetTodayLoaded();
-        if (!leetTodayCache.byDate || typeof leetTodayCache.byDate !== "object") {
-          leetTodayCache.byDate = {};
-        }
+        ensureLeetTodayCacheShape();
         if (!leetTodayCache.byDate[dateKey] || typeof leetTodayCache.byDate[dateKey] !== "object") {
           leetTodayCache.byDate[dateKey] = {};
         }
@@ -1334,7 +1390,8 @@ client.on("messageCreate", async (msg) => {
           return { question: cached, reused: true };
         }
 
-        const question = await pickLeetRandomQuestion(difficulty);
+        const excludedProblemIds = collectExcludedTodayProblemIds(difficulty);
+        const question = await pickLeetRandomQuestion(difficulty, { excludedProblemIds });
         leetTodayCache.byDate[dateKey][difficulty] = {
           title: question.title,
           problemId: question.problemId,
@@ -1342,6 +1399,7 @@ client.on("messageCreate", async (msg) => {
           difficulty,
           selectedAt: new Date().toISOString(),
         };
+        rememberTodayProblem(difficulty, question.problemId);
         await persistLeetTodayCache();
         return { question: leetTodayCache.byDate[dateKey][difficulty], reused: false };
       });
