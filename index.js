@@ -148,10 +148,16 @@ async function getBotVersionInfo() {
           .split("|")
           .map((value) => value.trim());
       } catch (err) {
-        console.log(
-          "[version] self container inspect failed, fallback to BOT_IMAGE_REF:",
-          err.message
-        );
+        if (isDockerNoSuchObjectError(err)) {
+          console.log(
+            "[version] self container inspect skipped (HOSTNAME으로 컨테이너를 조회할 수 없음), BOT_IMAGE_REF로 대체합니다."
+          );
+        } else {
+          console.log(
+            "[version] self container inspect failed, fallback to BOT_IMAGE_REF:",
+            err.message
+          );
+        }
       }
     }
 
@@ -214,13 +220,13 @@ async function getBotVersionInfo() {
 
 function formatVersionMessage(versionInfo) {
   if (!versionInfo.ok) {
-    return `ℹ️ ${versionInfo.message}`;
+    return `정보: ${versionInfo.message}`;
   }
 
   const ghcrUrl = getImageRepositoryUrl(versionInfo.configuredImage);
 
   return (
-    "ℹ️ 봇 버전 정보\n" +
+    "봇 버전 정보\n" +
     `- Image: ${versionInfo.configuredImage}\n` +
     `- Image ID: ${versionInfo.imageId}\n` +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
@@ -233,11 +239,11 @@ function formatVersionMessage(versionInfo) {
 
 function formatBootVersionMessage(versionInfo) {
   if (!versionInfo.ok) {
-    return `ℹ️ ${versionInfo.message}`;
+    return `정보: ${versionInfo.message}`;
   }
 
   return (
-    "ℹ️ 봇이 재시작되었습니다.\n" +
+    "봇이 재시작되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${versionInfo.revision}`
   );
@@ -245,11 +251,11 @@ function formatBootVersionMessage(versionInfo) {
 
 function formatUpdateSummaryMessage(versionInfo) {
   if (!versionInfo.ok) {
-    return `✅ 업데이트 확인이 완료되었습니다.\nℹ️ ${versionInfo.message}`;
+    return `업데이트 확인이 완료되었습니다.\n정보: ${versionInfo.message}`;
   }
 
   return (
-    "✅ 업데이트 확인이 완료되었습니다.\n" +
+    "업데이트 확인이 완료되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${versionInfo.revision}`
   );
@@ -311,6 +317,11 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function isDockerNoSuchObjectError(errorLike) {
+  const message = String(errorLike && errorLike.message ? errorLike.message : errorLike || "");
+  return message.includes("no such object");
+}
+
 function normalizeContainerPath(value) {
   const normalized = path.posix.normalize(String(value || "").trim());
   if (!normalized) return "/";
@@ -326,21 +337,21 @@ function isPathCoveredByMount(targetPath, mountDestination) {
 async function warnRpsPersistenceMisconfigOnReady() {
   if (!process.env.RPS_STATS_PATH) {
     console.log(
-      "🚨 [rps][WARN] RPS_STATS_PATH 환경변수가 없어 기본 경로를 사용합니다:",
+      "[rps][WARN] RPS_STATS_PATH 환경변수가 없어 기본 경로를 사용합니다:",
       RPS_STATS_PATH
     );
     console.log(
-      "🛠️ [rps][ACTION] 런타임 환경변수에 RPS_STATS_PATH=/app/data/rps-stats.json 를 명시하세요."
+      "[rps][ACTION] 런타임 환경변수에 RPS_STATS_PATH=/app/data/rps-stats.json 를 명시하세요."
     );
   }
 
   const containerId = (process.env.HOSTNAME || "").trim();
   if (!containerId || !isSafeDockerRef(containerId)) {
     console.log(
-      "🚨 [rps][WARN] 컨테이너 마운트를 검사할 수 없습니다. HOSTNAME 값이 없거나 안전하지 않습니다."
+      "[rps][WARN] 컨테이너 마운트를 검사할 수 없습니다. HOSTNAME 값이 없거나 안전하지 않습니다."
     );
     console.log(
-      "🛠️ [rps][ACTION] docker.sock 접근 가능 상태인지 확인하고 다음 명령으로 마운트를 점검하세요: docker inspect <container> --format '{{json .Mounts}}'"
+      "[rps][ACTION] docker.sock 접근 가능 상태인지 확인하고 다음 명령으로 마운트를 점검하세요: docker inspect <container> --format '{{json .Mounts}}'"
     );
     return;
   }
@@ -360,36 +371,46 @@ async function warnRpsPersistenceMisconfigOnReady() {
 
     if (!coveringMount) {
       console.log(
-        "🚨 [rps][WARN] RPS_STATS_PATH를 포함하는 컨테이너 마운트가 없습니다. 전적은 재시작/업데이트 시 초기화됩니다.",
+        "[rps][WARN] RPS_STATS_PATH를 포함하는 컨테이너 마운트가 없습니다. 전적은 재시작/업데이트 시 초기화됩니다.",
         "| path:",
         RPS_STATS_PATH
       );
       console.log(
-        `🛠️ [rps][ACTION] ${RPS_STATS_PATH} 경로를 포함하는 쓰기 가능한 볼륨을 추가하세요. (예: ./data:/app/data)`
+        `[rps][ACTION] ${RPS_STATS_PATH} 경로를 포함하는 쓰기 가능한 볼륨을 추가하세요. (예: ./data:/app/data)`
       );
       return;
     }
 
     if (coveringMount.RW !== true) {
       console.log(
-        "🚨 [rps][WARN] 전적 저장 마운트가 읽기 전용입니다. 전적을 기록할 수 없습니다.",
+        "[rps][WARN] 전적 저장 마운트가 읽기 전용입니다. 전적을 기록할 수 없습니다.",
         `| dst: ${coveringMount.Destination || "(unknown)"}`
       );
       console.log(
-        "🛠️ [rps][ACTION] RPS 전적 볼륨을 쓰기 가능(rw) 모드로 변경하세요."
+        "[rps][ACTION] RPS 전적 볼륨을 쓰기 가능(rw) 모드로 변경하세요."
       );
     }
 
     console.log(
-      "✅ [rps][OK] 전적 저장 마운트를 확인했습니다:",
+      "[rps][OK] 전적 저장 마운트를 확인했습니다:",
       `type=${coveringMount.Type || "(unknown)"}`,
       `src=${coveringMount.Source || "(unknown)"}`,
       `dst=${coveringMount.Destination || "(unknown)"}`,
       `rw=${coveringMount.RW === true ? "true" : "false"}`
     );
   } catch (err) {
+    if (isDockerNoSuchObjectError(err)) {
+      console.log(
+        "[rps][INFO] 현재 런타임에서는 HOSTNAME으로 자기 컨테이너를 조회할 수 없습니다. 마운트 자동 점검 로그를 생략합니다.",
+        `| hostname: ${containerId}`
+      );
+      console.log(
+        "[rps][ACTION] 필요하면 운영 환경에서 docker inspect <실제 컨테이너명> --format '{{json .Mounts}}' 로 직접 점검하세요."
+      );
+      return;
+    }
     console.log(
-      "🚨 [rps][WARN] 전적 영속화 점검을 위한 마운트 조회에 실패했습니다:",
+      "[rps][WARN] 전적 영속화 점검을 위한 마운트 조회에 실패했습니다:",
       err.message
     );
   }
@@ -507,14 +528,14 @@ async function ensureRpsStatsLoaded() {
     } catch (parseErr) {
       const brokenPath = `${RPS_STATS_PATH}.broken-${Date.now()}`;
       console.log(
-        "🚨 [rps][WARN] 전적 파일 JSON이 손상되어 백업 후 초기화합니다:",
+        "[rps][WARN] 전적 파일 JSON이 손상되어 백업 후 초기화합니다:",
         brokenPath
       );
       try {
         await fs.rename(RPS_STATS_PATH, brokenPath);
       } catch (renameErr) {
         console.log(
-          "🚨 [rps][WARN] 손상된 전적 파일 백업에 실패했습니다:",
+          "[rps][WARN] 손상된 전적 파일 백업에 실패했습니다:",
           renameErr.message,
           "| path:",
           RPS_STATS_PATH
@@ -526,7 +547,7 @@ async function ensureRpsStatsLoaded() {
   } catch (err) {
     if (err.code !== "ENOENT") {
       console.log(
-        "🚨 [rps][WARN] 전적 파일 로드에 실패했습니다:",
+        "[rps][WARN] 전적 파일 로드에 실패했습니다:",
         err.message,
         "| path:",
         RPS_STATS_PATH
@@ -556,15 +577,15 @@ async function ensureRpsStatsLoaded() {
     fileExists = false;
   }
   console.log(
-    `ℹ️ [rps][INFO] 전적 저장소 준비 완료: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
+    `[rps][INFO] 전적 저장소 준비 완료: mode=${loadMode} path=${RPS_STATS_PATH} dir=${dir} writable=${writable} fileExists=${fileExists} fileSize=${fileSize} users=${users} games=${totalGames}`
   );
   if (!RPS_STATS_PATH.startsWith("/app/data/")) {
     console.log(
-      "🚨 [rps][WARN] RPS_STATS_PATH가 /app/data 밖에 있습니다. 전적 영속화가 보장되지 않습니다:",
+      "[rps][WARN] RPS_STATS_PATH가 /app/data 밖에 있습니다. 전적 영속화가 보장되지 않습니다:",
       RPS_STATS_PATH
     );
     console.log(
-      "🛠️ [rps][ACTION] /app/data/* 경로를 사용하고, 호스트 볼륨을 /app/data로 마운트하세요."
+      "[rps][ACTION] /app/data/* 경로를 사용하고, 호스트 볼륨을 /app/data로 마운트하세요."
     );
   }
 }

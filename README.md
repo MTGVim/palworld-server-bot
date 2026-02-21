@@ -115,10 +115,10 @@ docker run --rm \
 전적 유실이 의심되면 아래 순서로 확인합니다.
 
 1. 봇 로그에서 저장소 상태 로그 확인
-- `ℹ️ [rps][INFO] 전적 저장소 준비 완료: ... path=... writable=... fileExists=... users=... games=...`
-- `✅ [rps][OK] 전적 저장 마운트를 확인했습니다: type=... src=... dst=... rw=...`
-- `✅ [rps][OK] 전적 저장 성공: path=... writes=... bytes=...`
-- `🚨 [rps][WARN] ...`이 나오면 바로 뒤 `🛠️ [rps][ACTION] ...` 안내를 그대로 적용한다.
+- `[rps][INFO] 전적 저장소 준비 완료: ... path=... writable=... fileExists=... users=... games=...`
+- `[rps][OK] 전적 저장 마운트를 확인했습니다: type=... src=... dst=... rw=...`
+- `[rps][OK] 전적 저장 성공: path=... writes=... bytes=...`
+- `[rps][WARN] ...`이 나오면 바로 뒤 `[rps][ACTION] ...` 안내를 그대로 적용한다.
 
 2. 호스트 파일 확인
 ```bash
