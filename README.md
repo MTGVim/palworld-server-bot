@@ -23,27 +23,31 @@
 
 컨테이너 실행 시 다음 환경 변수를 설정해야 합니다.
 
-- **DISCORD_BOT_TOKEN**: 디스코드 봇 토큰
-- **SERVER_URL**: 팔월드 서버 관리자 API 엔드포인트 (예: `http://172.17.0.1:8212`)
-- **ADMIN_PASSWORD**: 관리자 비밀번호 (HTTP Basic Auth용)
-- **ADMIN_USER_IDS**: `!봇 업데이트` 실행 권한을 가진 Discord 사용자 ID 목록 (쉼표 구분)
-- **BOT_UPDATE_ENABLED**: 봇 업데이트 명령 활성화 여부 (`true`/`false`, 기본 `false`)
-- **STATUS_CHANNEL_ID**: 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID (선택)
-- **WATCHTOWER_IMAGE**: 1회 업데이트 실행 시 사용할 Watchtower 이미지 (기본 `containrrr/watchtower:latest`)
-- **BOT_IMAGE_REF**: `!봇 버전` 조회 시 기본 대상 이미지 ref (기본 `ghcr.io/mtgvim/palworld-server-bot:latest`)
-- **RPS_STATS_PATH**: `!가위바위보` 전적 저장 파일 경로 (기본 `/app/data/rps-stats.json`)
-- **AUTO_PAUSE_TIMEOUT**: 유휴 경고 기준 시간(초). 기본값 `300`
-- **CHECK_INTERVAL**: 접속자 체크 주기(ms). 기본값 `10000`
-- **PLAYERS_API_TIMEOUT_MS**: 접속자 API 타임아웃(ms). 기본값 `5000`
-- **STABLE_ZERO_REQUIRED_SAMPLES**: 유휴 상태로 판단하기 위한 연속 0명 샘플 수. 기본값 `2`
-- **NON_ZERO_GRACE_SECONDS**: 최근 접속자가 있었으면 경고를 보류하는 grace 시간(초). 기본값 `20`
+| 변수 | 필수 | 기본값 | 설명 |
+|---|---|---|---|
+| `DISCORD_BOT_TOKEN` | 예 | - | 디스코드 봇 토큰 |
+| `SERVER_URL` | 예 | - | 팔월드 서버 관리자 API 엔드포인트 (예: `http://172.17.0.1:8212`) |
+| `ADMIN_PASSWORD` | 예 | - | 관리자 비밀번호 (HTTP Basic Auth용) |
+| `ADMIN_USER_IDS` | 아니오 | `""` | `!봇 업데이트` 실행 권한을 가진 Discord 사용자 ID 목록 (쉼표 구분) |
+| `BOT_UPDATE_ENABLED` | 아니오 | `false` | 봇 업데이트 명령 활성화 여부 (`true`/`false`) |
+| `STATUS_CHANNEL_ID` | 아니오 | `""` | 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID |
+| `WATCHTOWER_IMAGE` | 아니오 | `containrrr/watchtower:latest` | 1회 업데이트 실행 시 사용할 Watchtower 이미지 |
+| `BOT_IMAGE_REF` | 아니오 | `ghcr.io/mtgvim/palworld-server-bot:latest` | `!봇 버전` 조회 시 기본 대상 이미지 ref |
+| `RPS_STATS_PATH` | 아니오 | `/app/data/rps-stats.json` | `!가위바위보` 전적 저장 파일 경로 |
+| `AUTO_PAUSE_TIMEOUT` | 아니오 | `300` | 유휴 경고 기준 시간(초) |
+| `CHECK_INTERVAL` | 아니오 | `10000` | 접속자 체크 주기(ms) |
+| `PLAYERS_API_TIMEOUT_MS` | 아니오 | `5000` | 접속자 API 타임아웃(ms) |
+| `STABLE_ZERO_REQUIRED_SAMPLES` | 아니오 | `2` | 유휴 상태로 판단하기 위한 연속 0명 샘플 수 |
+| `NON_ZERO_GRACE_SECONDS` | 아니오 | `20` | 최근 접속자가 있었으면 경고를 보류하는 grace 시간(초) |
 
 `docker-compose.yml` 사용 시 `SERVER_URL`, `ADMIN_PASSWORD`를 추가로 설정해야 `!상태`, `!접속자` 명령이 동작합니다.
 RCON 관련 변수는 선택적으로 설정할 수 있습니다.
 
-- **RCON_HOST**: RCON 호스트 (예: `172.17.0.1`)
-- **RCON_PORT**: RCON 포트 (예: `25575`)
-- **RCON_PASSWORD**: RCON 비밀번호
+| 변수 | 필수 | 기본값 | 설명 |
+|---|---|---|---|
+| `RCON_HOST` | 아니오 | - | RCON 호스트 (예: `172.17.0.1`) |
+| `RCON_PORT` | 아니오 | - | RCON 포트 (예: `25575`) |
+| `RCON_PASSWORD` | 아니오 | - | RCON 비밀번호 |
 
 ---
 
@@ -53,7 +57,7 @@ RCON 관련 변수는 선택적으로 설정할 수 있습니다.
 이 저장소에서는 CI/CD로 이미지가 빌드/배포됩니다.
 CI에서 OCI revision 라벨(`org.opencontainers.image.revision`)을 이미지에 포함하므로, 새로 배포된 이미지부터 `!봇 버전`의 `Revision`/`Ref(commit)` 값이 표시됩니다.
 과거 이미지나 라벨이 없는 이미지는 해당 값이 `(unknown)`으로 표시될 수 있습니다.
-또한 GitHub Actions는 이미지 push 이후 `docker buildx imagetools inspect`로 최대 30초(5초 간격, 6회) 전파 확인을 수행한 뒤 Discord Webhook으로 성공/실패를 알립니다.
+또한 GitHub Actions는 이미지 push 이후 `docker buildx imagetools inspect`로 최대 30초(5초 간격, 6회) 전파 확인을 수행한 뒤, digest가 변경된 경우에만 Discord Webhook으로 성공 알림을 보냅니다(실패 알림은 항상 전송). 알림 메시지에는 해당 배포 구간의 GitHub compare 링크가 포함됩니다.
 알림을 쓰려면 저장소 `Settings > Secrets and variables > Actions`에 `DISCORD_WEBHOOK_URL` 시크릿을 추가하세요.
 
 `!봇 업데이트` 명령은 상시 Watchtower 컨테이너를 띄우지 않고, 필요 시 `docker run ... watchtower --run-once --label-enable`를 1회 실행해

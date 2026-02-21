@@ -31,7 +31,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Read previous latest digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:latest"
+          PREV_DIGEST="$(docker buildx imagetools inspect "$IMAGE" 2>/dev/null | awk '/^Digest:/ {print $2; exit}')"
+          echo "PREV_LATEST_DIGEST=${PREV_DIGEST:-}" >> "$GITHUB_ENV"
+
       - name: Build & Push
+        id: build_push
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -43,6 +52,28 @@ jobs:
           tags: |
             ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:latest
             ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}
+
+      - name: Compare digest change
+        shell: bash
+        env:
+          NEW_DIGEST: ${{ steps.build_push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          PREV="${PREV_LATEST_DIGEST:-}"
+          NEW="${NEW_DIGEST:-}"
+          if [ -z "$NEW" ]; then
+            echo "IMAGE_CHANGED=true" >> "$GITHUB_ENV"
+            echo "Unable to read new digest; keep notifications enabled."
+            exit 0
+          fi
+          if [ -z "$PREV" ] || [ "$PREV" != "$NEW" ]; then
+            echo "IMAGE_CHANGED=true" >> "$GITHUB_ENV"
+            echo "Digest changed: ${PREV:-<none>} -> $NEW"
+          else
+            echo "IMAGE_CHANGED=false" >> "$GITHUB_ENV"
+            echo "Digest unchanged: $NEW"
+          fi
+          echo "NEW_IMAGE_DIGEST=$NEW" >> "$GITHUB_ENV"
 
       - name: Verify GHCR tag propagation (retry up to 30s)
         shell: bash
@@ -67,13 +98,26 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          if [ "${IMAGE_CHANGED:-true}" != "true" ]; then
+            echo "Image digest unchanged. Skip success notification."
+            exit 0
+          fi
           if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
             echo "DISCORD_WEBHOOK_URL is not set. Skip success notification."
             exit 0
           fi
           IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}"
           SHORT_SHA="${GITHUB_SHA::7}"
-          MSG="✅ GHCR 이미지 업로드 확인 완료\n- Repo: ${{ github.repository }}\n- Commit: ${SHORT_SHA}\n- Image: ${IMAGE}"
+          COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
+          MSG=$(cat <<EOF
+          ✅ GHCR 이미지 업로드 확인 완료
+          - Repo: ${{ github.repository }}
+          - Commit: ${SHORT_SHA}
+          - Image: ${IMAGE}
+          - Digest: ${NEW_IMAGE_DIGEST:-unknown}
+          - Compare: ${COMPARE_URL}
+          EOF
+          )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg content "$MSG" '{content:$content}')"
@@ -90,7 +134,15 @@ jobs:
             exit 0
           fi
           SHORT_SHA="${GITHUB_SHA::7}"
-          MSG="❌ GHCR 이미지 업로드 확인 실패\n- Repo: ${{ github.repository }}\n- Commit: ${SHORT_SHA}\n- Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
+          MSG=$(cat <<EOF
+          ❌ GHCR 이미지 업로드 확인 실패
+          - Repo: ${{ github.repository }}
+          - Commit: ${SHORT_SHA}
+          - Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          - Compare: ${COMPARE_URL}
+          EOF
+          )
           curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg content "$MSG" '{content:$content}')"
