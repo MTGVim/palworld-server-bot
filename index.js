@@ -479,7 +479,7 @@ function enqueueLeetTodayTask(task) {
 }
 
 async function fetchBojProblemsPage(range, page) {
-  const query = `tier:${range.min}..${range.max} *0`;
+  const query = `tier:${range.min}..${range.max}`;
   const url = `${BOJ_SEARCH_API_URL}?query=${encodeURIComponent(query)}&page=${page}`;
   const response = await fetchWithTimeout(
     url,
