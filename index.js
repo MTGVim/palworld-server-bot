@@ -51,6 +51,19 @@ const RPS_RANKING_MIN_GAMES_FOR_WIN_RATE = parseInt(
   process.env.RPS_RANKING_MIN_GAMES_FOR_WIN_RATE || "10",
   10
 );
+const LEETCODE_GRAPHQL_URL = (
+  process.env.LEETCODE_GRAPHQL_URL || "https://leetcode.com/graphql"
+).trim();
+const LEETCODE_FETCH_TIMEOUT_MS = parseInt(
+  process.env.LEETCODE_FETCH_TIMEOUT_MS || "5000",
+  10
+);
+const LEETCODE_TODAY_CACHE_PATH = (
+  process.env.LEETCODE_TODAY_CACHE_PATH || "/app/data/leetcode-today.json"
+).trim();
+const LEETCODE_TODAY_TIMEZONE = (
+  process.env.LEETCODE_TODAY_TIMEZONE || "Asia/Seoul"
+).trim();
 
 const AUTH =
   "Basic " + Buffer.from("admin:" + PASSWORD).toString("base64");
@@ -64,6 +77,9 @@ let updateInProgress = false;
 let rpsStats = {};
 let rpsStatsLoaded = false;
 let loopPausedNoticeShown = false;
+let leetTodayLoaded = false;
+let leetTodayCache = { byDate: {} };
+let leetTodayQueue = Promise.resolve();
 const rpsPersistence = createRpsPersistence({
   fs,
   statsPath: RPS_STATS_PATH,
@@ -326,6 +342,185 @@ function safeJsonParse(value, fallback) {
 function isDockerNoSuchObjectError(errorLike) {
   const message = String(errorLike && errorLike.message ? errorLike.message : errorLike || "");
   return message.includes("no such object");
+}
+
+function normalizeLeetDifficulty(input) {
+  const value = String(input || "").trim().toLowerCase();
+  const compact = value.replace(/\s+/g, "");
+  if (!value) return "MEDIUM";
+  if (["easy", "e"].includes(value)) return "EASY";
+  if (["medium", "m"].includes(value)) return "MEDIUM";
+  if (["hard", "h"].includes(value)) return "HARD";
+  if (compact.includes("쉬움") || compact.includes("초급")) return "EASY";
+  if (compact.includes("중간") || compact.includes("보통") || compact.includes("중급")) return "MEDIUM";
+  if (compact.includes("어려움") || compact.includes("고급")) return "HARD";
+  return null;
+}
+
+function formatLeetDifficultyLabel(difficulty) {
+  if (difficulty === "EASY") return "쉬움";
+  if (difficulty === "HARD") return "어려움";
+  return "중간";
+}
+
+function resolveLeetTodayTimeZone() {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: LEETCODE_TODAY_TIMEZONE }).format(new Date());
+    return LEETCODE_TODAY_TIMEZONE;
+  } catch {
+    return "Asia/Seoul";
+  }
+}
+
+function getDateKeyInTimeZone(date, timeZone) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (!year || !month || !day) {
+    return date.toISOString().slice(0, 10);
+  }
+  return `${year}-${month}-${day}`;
+}
+
+async function ensureLeetTodayLoaded() {
+  if (leetTodayLoaded) {
+    return;
+  }
+
+  const dir = path.dirname(LEETCODE_TODAY_CACHE_PATH);
+  let loadMode = "empty";
+
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    const raw = await fs.readFile(LEETCODE_TODAY_CACHE_PATH, "utf8");
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && parsed.byDate && typeof parsed.byDate === "object") {
+        leetTodayCache = parsed;
+        loadMode = "file";
+      } else {
+        leetTodayCache = { byDate: {} };
+        loadMode = "invalid-reset";
+      }
+    } catch {
+      leetTodayCache = { byDate: {} };
+      loadMode = "invalid-reset";
+    }
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      console.log("[leet][WARN] 오늘의문제 캐시 로드 실패:", err.message, "| path:", LEETCODE_TODAY_CACHE_PATH);
+    }
+    leetTodayCache = { byDate: {} };
+  }
+
+  leetTodayLoaded = true;
+  console.log(`[leet][INFO] 오늘의문제 캐시 준비 완료: mode=${loadMode} path=${LEETCODE_TODAY_CACHE_PATH}`);
+}
+
+function pruneLeetTodayCache(maxDays) {
+  if (!leetTodayCache.byDate || typeof leetTodayCache.byDate !== "object") {
+    leetTodayCache.byDate = {};
+    return;
+  }
+  const keys = Object.keys(leetTodayCache.byDate).sort();
+  while (keys.length > maxDays) {
+    const oldest = keys.shift();
+    if (!oldest) break;
+    delete leetTodayCache.byDate[oldest];
+  }
+}
+
+async function persistLeetTodayCache() {
+  await ensureLeetTodayLoaded();
+  pruneLeetTodayCache(14);
+  const payload = JSON.stringify(leetTodayCache, null, 2);
+  await fs.writeFile(LEETCODE_TODAY_CACHE_PATH, payload, "utf8");
+}
+
+function enqueueLeetTodayTask(task) {
+  const scheduled = leetTodayQueue.then(task, task);
+  leetTodayQueue = scheduled.catch(() => {});
+  return scheduled;
+}
+
+async function fetchLeetRandomQuestion(difficulty) {
+  const query = [
+    "query randomQ($categorySlug: String, $filters: QuestionListFilterInput) {",
+    "  randomQuestion(categorySlug: $categorySlug, filters: $filters) {",
+    "    title",
+    "    titleSlug",
+    "    difficulty",
+    "    isPaidOnly",
+    "  }",
+    "}",
+  ].join("\n");
+
+  const response = await fetchWithTimeout(
+    LEETCODE_GRAPHQL_URL,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query,
+        variables: {
+          categorySlug: "",
+          filters: {
+            difficulty,
+          },
+        },
+      }),
+    },
+    LEETCODE_FETCH_TIMEOUT_MS
+  );
+
+  if (!response.ok) {
+    throw new Error(`LeetCode API HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  if (Array.isArray(payload.errors) && payload.errors.length > 0) {
+    const firstError = payload.errors[0]?.message || "unknown error";
+    throw new Error(`LeetCode API 오류: ${firstError}`);
+  }
+
+  const question = payload?.data?.randomQuestion;
+  if (!question || !question.titleSlug) {
+    throw new Error("랜덤 문제를 찾지 못했습니다.");
+  }
+
+  return {
+    title: String(question.title || question.titleSlug),
+    titleSlug: String(question.titleSlug),
+    difficulty: String(question.difficulty || difficulty).toUpperCase(),
+    isPaidOnly: Boolean(question.isPaidOnly),
+  };
+}
+
+async function pickLeetRandomQuestion(difficulty) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const question = await fetchLeetRandomQuestion(difficulty);
+    if (!question.isPaidOnly) {
+      return question;
+    }
+  }
+  throw new Error("무료 문제를 찾지 못했습니다. 잠시 후 다시 시도해주세요.");
+}
+
+function formatLeetQuestionLine(prefix, difficulty, question) {
+  const label = formatLeetDifficultyLabel(difficulty);
+  const url = `https://leetcode.com/problems/${question.titleSlug}/`;
+  return (
+    `${prefix} (${label})\n` +
+    `- 제목: ${question.title}\n` +
+    `- 링크: ${url}`
+  );
 }
 
 function normalizeContainerPath(value) {
@@ -922,6 +1117,7 @@ const client = new Client({
 client.on("clientReady", async () => {
   console.log("봇 준비 완료");
   await ensureRpsStatsLoaded();
+  await ensureLeetTodayLoaded();
   await warnRpsPersistenceMisconfigOnReady();
 
   const versionInfo = await getBotVersionInfo();
@@ -963,7 +1159,7 @@ client.on("messageCreate", async (msg) => {
   if (content === "!도움") {
     msg.reply(
       "📌 사용 가능한 명령어\n" +
-        "!도움\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
+        "!도움\n!기동\n!일시중지\n!재시작\n!상태\n!접속자\n!추첨 [N]\n!랜덤문제 [쉬움|중간|어려움]\n!오늘의문제 [(쉬움|중간|어려움)]\n!가위바위보 <가위|바위|보>\n!가위바위보 전적\n!가위바위보 랭킹 [N]\n!봇 버전\n!봇 업데이트"
     );
   }
 
@@ -1034,6 +1230,69 @@ client.on("messageCreate", async (msg) => {
     return msg.reply(
       `🎉 추첨 결과 (${requestedCount}명 / 온라인 ${onlineMembers.length}명)\n${mentions}`
     );
+  }
+
+  const randomQuestionMatch = content.match(/^!랜덤문제(?:\s+(.+))?$/);
+  if (randomQuestionMatch) {
+    const difficultyArg = String(randomQuestionMatch[1] || "").trim();
+    const difficulty = normalizeLeetDifficulty(difficultyArg);
+    if (!difficulty) {
+      return msg.reply("⚠️ 사용법: `!랜덤문제 [쉬움|중간|어려움]`");
+    }
+
+    try {
+      const question = await pickLeetRandomQuestion(difficulty);
+      return msg.reply(formatLeetQuestionLine("🎲 랜덤문제", difficulty, question));
+    } catch (err) {
+      console.log("[leet][WARN] !랜덤문제 실패:", err.message);
+      return msg.reply(`⚠️ 랜덤문제 조회 실패: ${err.message}`);
+    }
+  }
+
+  const todayQuestionMatch = content.match(/^!오늘의문제(?:\s+\(([^)]+)\)|\s+(.+))?$/);
+  if (todayQuestionMatch) {
+    const rawArg = String(todayQuestionMatch[1] || todayQuestionMatch[2] || "").trim();
+    const difficulty = normalizeLeetDifficulty(rawArg);
+    if (!difficulty) {
+      return msg.reply("⚠️ 사용법: `!오늘의문제`, `!오늘의문제 (중간)`");
+    }
+
+    const timezone = resolveLeetTodayTimeZone();
+    const dateKey = getDateKeyInTimeZone(new Date(), timezone);
+    try {
+      const selected = await enqueueLeetTodayTask(async () => {
+        await ensureLeetTodayLoaded();
+        if (!leetTodayCache.byDate || typeof leetTodayCache.byDate !== "object") {
+          leetTodayCache.byDate = {};
+        }
+        if (!leetTodayCache.byDate[dateKey] || typeof leetTodayCache.byDate[dateKey] !== "object") {
+          leetTodayCache.byDate[dateKey] = {};
+        }
+
+        const cached = leetTodayCache.byDate[dateKey][difficulty];
+        if (cached && cached.titleSlug) {
+          return { question: cached, reused: true };
+        }
+
+        const question = await pickLeetRandomQuestion(difficulty);
+        leetTodayCache.byDate[dateKey][difficulty] = {
+          title: question.title,
+          titleSlug: question.titleSlug,
+          difficulty: question.difficulty,
+          selectedAt: new Date().toISOString(),
+        };
+        await persistLeetTodayCache();
+        return { question: leetTodayCache.byDate[dateKey][difficulty], reused: false };
+      });
+
+      const header = selected.reused
+        ? `📌 오늘의문제 고정 (${dateKey}, ${timezone})`
+        : `📌 오늘의문제 확정 (${dateKey}, ${timezone})`;
+      return msg.reply(formatLeetQuestionLine(header, difficulty, selected.question));
+    } catch (err) {
+      console.log("[leet][WARN] !오늘의문제 실패:", err.message);
+      return msg.reply(`⚠️ 오늘의문제 조회 실패: ${err.message}`);
+    }
   }
 
   const rpsMatch = content.match(/^!가위바위보(?:\s+(.+))?$/);

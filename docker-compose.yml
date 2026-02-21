@@ -14,6 +14,10 @@ services:
       RPS_STATS_PATH: "/app/data/rps-stats.json"
       RPS_PERSIST_LOG_INTERVAL: "20"
       RPS_RANKING_MIN_GAMES_FOR_WIN_RATE: "10"
+      LEETCODE_GRAPHQL_URL: "https://leetcode.com/graphql"
+      LEETCODE_FETCH_TIMEOUT_MS: "5000"
+      LEETCODE_TODAY_CACHE_PATH: "/app/data/leetcode-today.json"
+      LEETCODE_TODAY_TIMEZONE: "Asia/Seoul"
 
       # 플레이어 조회/유휴 경고 설정
       AUTO_PAUSE_TIMEOUT: "300"
