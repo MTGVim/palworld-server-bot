@@ -309,7 +309,7 @@ function getAvailableCommandsMessage() {
     { command: "!상태", description: "서버 상태 조회" },
     { command: "!접속자", description: "접속자 목록 조회" },
     { command: "!봇 버전", description: "봇 이미지 정보 조회" },
-    { command: "!봇 업데이트", description: "watchtower 1회 실행으로 업데이트" },
+    { command: "!봇 업데이트", description: "봇 최신 버전 업데이트" },
   ];
   return formatAvailableCommands(commands);
 }
