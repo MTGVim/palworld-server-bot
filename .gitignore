@@ -3,3 +3,6 @@
 .agents/
 .codex/
 docs/
+
+# bkit-codex
+.bkit-codex/
