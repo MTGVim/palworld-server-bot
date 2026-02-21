@@ -61,24 +61,36 @@ jobs:
           exit 1
 
       - name: Notify Discord (success)
-        if: ${{ success() && secrets.DISCORD_WEBHOOK_URL != '' }}
+        if: ${{ success() }}
         shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "DISCORD_WEBHOOK_URL is not set. Skip success notification."
+            exit 0
+          fi
           IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}"
           SHORT_SHA="${GITHUB_SHA::7}"
           MSG="✅ GHCR 이미지 업로드 확인 완료\n- Repo: ${{ github.repository }}\n- Commit: ${SHORT_SHA}\n- Image: ${IMAGE}"
-          curl -sS -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+          curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg content "$MSG" '{content:$content}')"
 
       - name: Notify Discord (failure)
-        if: ${{ failure() && secrets.DISCORD_WEBHOOK_URL != '' }}
+        if: ${{ failure() }}
         shell: bash
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK_URL:-}" ]; then
+            echo "DISCORD_WEBHOOK_URL is not set. Skip failure notification."
+            exit 0
+          fi
           SHORT_SHA="${GITHUB_SHA::7}"
           MSG="❌ GHCR 이미지 업로드 확인 실패\n- Repo: ${{ github.repository }}\n- Commit: ${SHORT_SHA}\n- Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -sS -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+          curl -sS -X POST "${DISCORD_WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
             -d "$(jq -n --arg content "$MSG" '{content:$content}')"
