@@ -37,7 +37,11 @@ jobs:
             TOTAL=1
           fi
           EXTRA=$((TOTAL - 1))
-          echo "EXTRA_COMMIT_COUNT=$EXTRA" >> "$GITHUB_ENV"
+          SUFFIX=""
+          if [ "$EXTRA" -gt 0 ]; then
+            SUFFIX=" (외 ${EXTRA}건)"
+          fi
+          echo "COMMIT_EXTRA_SUFFIX=$SUFFIX" >> "$GITHUB_ENV"
           {
             echo "LATEST_COMMIT_LINE<<EOF"
             echo "$LATEST"
@@ -131,7 +135,9 @@ jobs:
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
           ✅ 이미지 업데이트됨 (${SHORT_SHA})
-          📝 ${LATEST_COMMIT_LINE} (외 ${EXTRA_COMMIT_COUNT}건)
+
+          📝 ${LATEST_COMMIT_LINE}${COMMIT_EXTRA_SUFFIX}
+
           🔗 [변경사항](${COMPARE_URL})
           EOF
           )
@@ -154,7 +160,9 @@ jobs:
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
           ❌ 이미지 업로드/검증 실패 (${SHORT_SHA})
-          📝 ${LATEST_COMMIT_LINE} (외 ${EXTRA_COMMIT_COUNT}건)
+
+          📝 ${LATEST_COMMIT_LINE}${COMMIT_EXTRA_SUFFIX}
+
           🔗 Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           🔗 [변경사항](${COMPARE_URL})
           EOF
