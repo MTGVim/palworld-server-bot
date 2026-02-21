@@ -31,6 +31,7 @@
 | `BOT_UPDATE_ENABLED` | 아니오 | `false` | 봇 업데이트 명령 활성화 여부 (`true`/`false`) |
 | `STATUS_CHANNEL_ID` | 아니오 | `""` | 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID |
 | `WATCHTOWER_IMAGE` | 아니오 | `containrrr/watchtower:latest` | 1회 업데이트 실행 시 사용할 Watchtower 이미지 |
+| `WATCHTOWER_SCOPE` | 아니오 | `palworld-server-bot` | Watchtower one-shot에서 갱신 대상 스코프(라벨 `com.centurylinklabs.watchtower.scope`) |
 | `BOT_IMAGE_REF` | 아니오 | `ghcr.io/mtgvim/palworld-server-bot:latest` | `!봇 버전` 조회 시 기본 대상 이미지 ref |
 | `AUTO_PAUSE_TIMEOUT` | 아니오 | `300` | 유휴 경고 기준 시간(초) |
 | `CHECK_INTERVAL` | 아니오 | `10000` | 접속자 체크 주기(ms) |
@@ -58,7 +59,7 @@ CI에서 OCI revision 라벨(`org.opencontainers.image.revision`)을 이미지�
 또한 GitHub Actions는 이미지 push 이후 `docker buildx imagetools inspect`로 최대 30초(5초 간격, 6회) 전파 확인을 수행한 뒤, digest가 변경된 경우에만 Discord Webhook으로 성공 알림을 보냅니다(실패 알림은 항상 전송). 알림은 카드형 포맷으로 `도커 이미지 배포 완료/실패`, 최근 커밋 1개(one-line)와 외 커밋 수, `!봇 업데이트` 안내, GitHub compare 링크를 포함합니다.
 알림을 쓰려면 저장소 `Settings > Secrets and variables > Actions`에 `DISCORD_WEBHOOK_URL` 시크릿을 추가하세요.
 
-`!봇 업데이트` 명령은 상시 Watchtower 컨테이너를 띄우지 않고, 필요 시 `docker run ... watchtower --run-once --label-enable`를 1회 실행해
+`!봇 업데이트` 명령은 상시 Watchtower 컨테이너를 띄우지 않고, 필요 시 `docker run ... watchtower --run-once --label-enable --scope ${WATCHTOWER_SCOPE}`를 1회 실행해
 Watchtower 라벨이 켜진 컨테이너만 업데이트를 확인/적용합니다.
 
 ---

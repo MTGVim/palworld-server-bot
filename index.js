@@ -32,6 +32,7 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
   .filter(Boolean);
 const STATUS_CHANNEL_ID = (process.env.STATUS_CHANNEL_ID || "").trim();
 const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
+const WATCHTOWER_SCOPE = (process.env.WATCHTOWER_SCOPE || "palworld-server-bot").trim();
 const BOT_IMAGE_REF = (process.env.BOT_IMAGE_REF || "ghcr.io/mtgvim/palworld-server-bot:latest").trim();
 
 const AUTH =
@@ -83,6 +84,10 @@ function dockerWithOutput(cmd) {
 
 function isSafeDockerRef(value) {
   return /^[A-Za-z0-9._:@/-]+$/.test(value);
+}
+
+function isSafeWatchtowerScope(value) {
+  return /^[A-Za-z0-9._-]+$/.test(value);
 }
 
 function isAuthorizedUpdater(userId) {
@@ -375,12 +380,17 @@ function getWatchtowerRunOnceCommand() {
       "WATCHTOWER_IMAGE 값이 안전하지 않습니다. 영문/숫자/._:@/- 문자만 사용해주세요."
     );
   }
+  if (!isSafeWatchtowerScope(WATCHTOWER_SCOPE)) {
+    throw new Error(
+      "WATCHTOWER_SCOPE 값이 안전하지 않습니다. 영문/숫자/._- 문자만 사용해주세요."
+    );
+  }
 
   return (
     "docker run --rm " +
     "-v /var/run/docker.sock:/var/run/docker.sock " +
     `${WATCHTOWER_IMAGE} ` +
-    "--run-once --cleanup --label-enable"
+    `--run-once --cleanup --label-enable --scope ${WATCHTOWER_SCOPE}`
   );
 }
 
