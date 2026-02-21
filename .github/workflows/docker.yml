@@ -134,7 +134,9 @@ jobs:
           SHORT_SHA="${GITHUB_SHA::7}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
-          ✅ 이미지 업데이트됨 (${SHORT_SHA})
+          🚀 이미지 업데이트됨 (${SHORT_SHA})
+
+          🤖 봇에 반영하려면 `!봇 업데이트`를 입력하세요.
 
           📝 ${LATEST_COMMIT_LINE}${COMMIT_EXTRA_SUFFIX}
 
