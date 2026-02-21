@@ -24,6 +24,26 @@ jobs:
         run: echo "OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
         shell: bash
 
+      - name: Build commit summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          LATEST="$(jq -r '.head_commit.message // ""' "$GITHUB_EVENT_PATH" | head -n1)"
+          if [ -z "$LATEST" ]; then
+            LATEST="$(git log -1 --pretty=%s)"
+          fi
+          TOTAL="$(jq -r '(.commits | length) // 0' "$GITHUB_EVENT_PATH")"
+          if [ "$TOTAL" -lt 1 ]; then
+            TOTAL=1
+          fi
+          EXTRA=$((TOTAL - 1))
+          echo "EXTRA_COMMIT_COUNT=$EXTRA" >> "$GITHUB_ENV"
+          {
+            echo "LATEST_COMMIT_LINE<<EOF"
+            echo "$LATEST"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -111,6 +131,7 @@ jobs:
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
           ✅ 이미지 업데이트됨 (${SHORT_SHA})
+          📝 ${LATEST_COMMIT_LINE} (외 ${EXTRA_COMMIT_COUNT}건)
           🔗 [변경사항](${COMPARE_URL})
           EOF
           )
@@ -133,6 +154,7 @@ jobs:
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
           ❌ 이미지 업로드/검증 실패 (${SHORT_SHA})
+          📝 ${LATEST_COMMIT_LINE} (외 ${EXTRA_COMMIT_COUNT}건)
           🔗 Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           🔗 [변경사항](${COMPARE_URL})
           EOF
