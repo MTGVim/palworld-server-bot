@@ -625,6 +625,9 @@ function formatRpsRecord(record) {
 }
 
 function getRpsRanking(limit) {
+  const minGames = Number.isInteger(RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
+    ? Math.max(1, RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
+    : 10;
   return Object.entries(rpsStats)
     .map(([userId, record]) => ({
       userId,
@@ -635,6 +638,9 @@ function getRpsRanking(limit) {
     }))
     .filter((row) => row.games > 0)
     .sort((a, b) => {
+      const aWinRate = a.games >= minGames ? a.wins / a.games : -1;
+      const bWinRate = b.games >= minGames ? b.wins / b.games : -1;
+      if (bWinRate !== aWinRate) return bWinRate - aWinRate;
       if (b.wins !== a.wins) return b.wins - a.wins;
       if (b.games !== a.games) return b.games - a.games;
       return a.losses - b.losses;
