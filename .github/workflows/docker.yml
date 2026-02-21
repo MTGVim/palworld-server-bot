@@ -129,7 +129,7 @@ jobs:
           fi
           IMAGE="ghcr.io/${{ env.OWNER_LC }}/palworld-server-bot:${{ github.sha }}"
           SHORT_SHA="${GITHUB_SHA::7}"
-          REVISION="revision=${SHORT_SHA}"
+          REVISION="${SHORT_SHA}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           BOT_NAME="${{ env.DEPLOY_BOT_NAME }}"
           MSG=$(cat <<EOF
@@ -157,7 +157,7 @@ jobs:
             exit 0
           fi
           SHORT_SHA="${GITHUB_SHA::7}"
-          REVISION="revision=${SHORT_SHA}"
+          REVISION="${SHORT_SHA}"
           BOT_NAME="${{ env.DEPLOY_BOT_NAME }}"
           COMPARE_URL="https://github.com/${{ github.repository }}/compare/${{ github.event.before }}...${{ github.sha }}"
           MSG=$(cat <<EOF
