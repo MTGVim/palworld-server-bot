@@ -413,6 +413,9 @@ async function warnRpsPersistenceMisconfigOnReady() {
       "[rps][WARN] 전적 영속화 점검을 위한 마운트 조회에 실패했습니다:",
       err.message
     );
+    console.log(
+      "[rps][ACTION] docker.sock 접근/권한을 확인하고, 필요하면 docker inspect <실제 컨테이너명> --format '{{json .Mounts}}' 로 직접 점검하세요."
+    );
   }
 }
 
