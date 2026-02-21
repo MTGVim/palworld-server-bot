@@ -303,7 +303,7 @@ function formatBootVersionMessage(versionInfo) {
     "ℹ️ 봇이 재시작되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${shortRevision(versionInfo.revision)}\n` +
-    `\n\n${getAvailableCommandsMessage()}`
+    `\n${getAvailableCommandsMessage()}`
   );
 }
 
