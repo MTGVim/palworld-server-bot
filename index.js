@@ -30,6 +30,12 @@ const ADMIN_USER_IDS = (process.env.ADMIN_USER_IDS || "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+const ALLOWED_CHANNEL_IDS = new Set(
+  (process.env.ALLOWED_CHANNEL_IDS || "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+);
 const STATUS_CHANNEL_ID = (process.env.STATUS_CHANNEL_ID || "").trim();
 const WATCHTOWER_IMAGE = (process.env.WATCHTOWER_IMAGE || "containrrr/watchtower:latest").trim();
 const WATCHTOWER_SCOPE = (process.env.WATCHTOWER_SCOPE || "palworld-server-bot").trim();
@@ -250,6 +256,20 @@ function formatUpdateSummaryMessage(versionInfo) {
     "업데이트 확인이 완료되었습니다.\n" +
     `- Created: ${formatCreatedAtSeoul(versionInfo.createdAt)}\n` +
     `- Revision: ${shortRevision(versionInfo.revision)}`
+  );
+}
+
+function getAvailableCommandsMessage() {
+  return (
+    "📌 사용 가능한 명령어\n" +
+    "!도움\n" +
+    "!기동\n" +
+    "!일시중지\n" +
+    "!재시작\n" +
+    "!상태\n" +
+    "!접속자\n" +
+    "!봇 버전\n" +
+    "!봇 업데이트"
   );
 }
 
@@ -667,6 +687,7 @@ client.on("error", (err) => {
 
 client.on("messageCreate", async (msg) => {
   if (msg.author.bot) return;
+  if (ALLOWED_CHANNEL_IDS.size > 0 && !ALLOWED_CHANNEL_IDS.has(msg.channelId)) return;
   const content = msg.content.trim();
 
   if (!botChannel) botChannel = msg.channel;
@@ -679,16 +700,7 @@ client.on("messageCreate", async (msg) => {
   );
 
   if (content === "!도움") {
-    msg.reply("📌 사용 가능한 명령어\n" +
-      "!도움\n" +
-      "!기동\n" +
-      "!일시중지\n" +
-      "!재시작\n" +
-      "!상태\n" +
-      "!접속자\n" +
-      "!봇 버전\n" +
-      "!봇 업데이트"
-    );
+    msg.reply(getAvailableCommandsMessage());
   }
 
   if (content === "!봇 버전" || content === "!봇버전") {
@@ -716,7 +728,9 @@ client.on("messageCreate", async (msg) => {
       const runOnceCommand = getWatchtowerRunOnceCommand();
       await docker(runOnceCommand);
       const versionInfo = await getBotVersionInfo();
-      await msg.channel.send(formatUpdateSummaryMessage(versionInfo));
+      await msg.channel.send(
+        `${formatUpdateSummaryMessage(versionInfo)}\n\n${getAvailableCommandsMessage()}`
+      );
     } catch (err) {
       console.log("[command] !봇 업데이트 failed:", err.message);
       await msg.channel.send(

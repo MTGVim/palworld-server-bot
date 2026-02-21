@@ -7,6 +7,7 @@ services:
       SERVER_URL: "http://172.17.0.1:8212"
       ADMIN_PASSWORD: "여기에_관리자_비밀번호"
       ADMIN_USER_IDS: "여기에_디스코드_관리자_ID(쉼표로_복수_지정)"
+      ALLOWED_CHANNEL_IDS: "여기에_허용채널_ID(쉼표로_복수_지정)"
       BOT_UPDATE_ENABLED: "true"
       STATUS_CHANNEL_ID: ""
       WATCHTOWER_IMAGE: "containrrr/watchtower:latest"

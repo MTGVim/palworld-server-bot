@@ -28,6 +28,7 @@
 | `SERVER_URL` | 예 | - | 팔월드 서버 관리자 API 엔드포인트 (예: `http://172.17.0.1:8212`) |
 | `ADMIN_PASSWORD` | 예 | - | 관리자 비밀번호 (HTTP Basic Auth용) |
 | `ADMIN_USER_IDS` | 아니오 | `""` | `!봇 업데이트` 실행 권한을 가진 Discord 사용자 ID 목록 (쉼표 구분) |
+| `ALLOWED_CHANNEL_IDS` | 아니오 | `""` | 봇이 반응할 채널 ID 목록(쉼표 구분). 빈 값이면 모든 채널 허용 |
 | `BOT_UPDATE_ENABLED` | 아니오 | `false` | 봇 업데이트 명령 활성화 여부 (`true`/`false`) |
 | `STATUS_CHANNEL_ID` | 아니오 | `""` | 봇 ready 시 버전 정보 요약(Created/Revision)을 보낼 Discord 채널 ID |
 | `WATCHTOWER_IMAGE` | 아니오 | `containrrr/watchtower:latest` | 1회 업데이트 실행 시 사용할 Watchtower 이미지 |
