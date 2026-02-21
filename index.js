@@ -652,7 +652,7 @@ function formatRankingWinRate(row) {
   const minGames = Number.isInteger(RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
     ? Math.max(1, RPS_RANKING_MIN_GAMES_FOR_WIN_RATE)
     : 10;
-  if (row.games < minGames) return "-";
+  if (row.games < minGames) return `${minGames}판 미만 🐥`;
   return `${((row.wins / row.games) * 100).toFixed(1)}%`;
 }
 
