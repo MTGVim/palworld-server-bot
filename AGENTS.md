@@ -54,11 +54,12 @@ Follow level-appropriate response formatting:
 - Always use Conventional Commits format: `type(scope): summary`
 - Allowed `type`: `feat`, `fix`, `refactor`, `chore`, `docs`, `test`, `ci`, `build`, `perf`, `revert`
 - Use lowercase English for `type`/`scope`
+- Write `summary` in Korean
 - Keep summary concise, imperative, and <= 72 chars
 - Do not use emoji prefixes in commit messages
 - If `docker-compose.yml` or runtime/env behavior changes, mention it explicitly in commit summary
 
 Examples:
-- `feat(bot): add on-demand watchtower run-once update command`
-- `fix(players): prevent false idle warning when active users exist`
-- `docs(readme): sync env vars with docker-compose`
+- `feat(bot): 워치타워 1회 실행 업데이트 명령 추가`
+- `fix(players): 활성 유저 존재 시 유휴 경고 오탐 방지`
+- `docs(readme): docker-compose와 환경변수 설명 동기화`
