@@ -3,7 +3,7 @@
 팔월드 전용 Docker 컨테이너(`palworld-server`)를 Discord 봇으로 제어하는 작은 유틸리티입니다.
 
 - **기능**
-  - 일정 시간 접속자가 없으면 Discord 채널에 유휴 경고 전송 (자동 강제 `pause` 없음)
+  - 일정 시간 접속자가 없으면 `palworld-server`를 자동 일시중지하고 Discord 채널에 안내 전송
   - 디스코드 명령어로 컨테이너 기동/일시중지/재시작/상태/접속자 조회
   - HTTP API (`/v1/api/players`) 를 통해 현재 접속자 수 확인
 
@@ -32,7 +32,7 @@
 | `WATCHTOWER_IMAGE` | 아니오 | `containrrr/watchtower:latest` | 1회 업데이트 실행 시 사용할 Watchtower 이미지 |
 | `WATCHTOWER_SCOPE` | 아니오 | `palworld-server-bot` | Watchtower one-shot에서 갱신 대상 스코프(라벨 `com.centurylinklabs.watchtower.scope`) |
 | `BOT_IMAGE_REF` | 아니오 | `ghcr.io/mtgvim/palworld-server-bot:latest` | `!봇 버전` 조회 시 기본 대상 이미지 ref |
-| `AUTO_PAUSE_TIMEOUT` | 아니오 | `300` | 유휴 경고 기준 시간(초) |
+| `AUTO_PAUSE_TIMEOUT` | 아니오 | `300` | 자동 일시중지 기준 시간(초) |
 | `CHECK_INTERVAL` | 아니오 | `10000` | 접속자 체크 주기(ms) |
 | `PLAYERS_API_TIMEOUT_MS` | 아니오 | `5000` | 접속자 API 타임아웃(ms) |
 | `STABLE_ZERO_REQUIRED_SAMPLES` | 아니오 | `2` | 유휴 상태로 판단하기 위한 연속 0명 샘플 수 |
@@ -81,8 +81,8 @@ docker run --rm \
 
 `docker-compose.yml`에는 `/var/run/docker.sock` 볼륨을 마운트하여, 봇 컨테이너 내부에서 `docker unpause/pause/restart` 명령으로
 `palworld-server` 컨테이너를 제어하도록 구성되어 있습니다.
-자동 루프는 컨테이너를 강제 일시중지하지 않고, 유휴 조건 충족 시 `⚠️ N분동안 접속자가 없습니다.` 경고를 1회만 전송합니다.
-경고는 `!기동`으로 서버를 다시 기동하면 초기화됩니다.
+자동 루프는 유휴 조건 충족 시 컨테이너를 자동 일시중지하고, `🟡 N분동안 접속자가 없어 서버를 자동으로 일시중지했습니다.` 안내를 1회 전송합니다.
+자동 일시중지 안내는 `!기동`으로 서버를 다시 기동하면 초기화됩니다.
 `palworld-server` 일시중지 상태 로그는 루프마다 반복하지 않고 상태 전환 시 1회만 출력합니다.
 
 ## 디스코드 초대 및 권한 가이드

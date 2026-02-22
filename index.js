@@ -524,6 +524,31 @@ async function isPaused(options = {}) {
   });
 }
 
+async function pausePalworldServer(options = {}) {
+  const {
+    source = "unknown",
+    channel = null,
+    successMessage = "🟡 서버가 일시중지되었습니다.",
+    failureMessage =
+      "⚠️ 서버 일시중지에 실패했습니다. Docker 접근 권한 또는 컨테이너 상태를 확인해주세요.",
+  } = options;
+
+  try {
+    await docker("docker pause palworld-server");
+    console.log(`[pause:${source}] pause succeeded.`);
+    if (channel) {
+      await channel.send(successMessage);
+    }
+    return { ok: true };
+  } catch (err) {
+    console.log(`[pause:${source}] pause failed:`, err.message);
+    if (channel) {
+      await channel.send(failureMessage);
+    }
+    return { ok: false, error: err };
+  }
+}
+
 async function getPlayers() {
   const snapshot = await getPlayersSnapshot("players");
   return snapshot.players;
@@ -704,15 +729,23 @@ setInterval(async () => {
       }
 
       console.log(
-        "[loop] idle timeout reached. warning only. seconds:",
+        "[loop] idle timeout reached. attempting automatic pause. seconds:",
         idleSeconds,
         "threshold:",
         AUTO_PAUSE_TIMEOUT
       );
-      if (!idleWarningSentSinceStartup && botChannel) {
-        idleWarningSentSinceStartup = true;
+      if (!idleWarningSentSinceStartup) {
         const idleMinutes = Math.max(1, Math.floor(idleSeconds / 60));
-        botChannel.send(`⚠️ ${idleMinutes}분동안 접속자가 없습니다.`);
+        const pauseResult = await pausePalworldServer({
+          source: "loop-auto",
+          channel: botChannel,
+          successMessage: `🟡 ${idleMinutes}분동안 접속자가 없어 서버를 자동으로 일시중지했습니다.`,
+          failureMessage:
+            "⚠️ 유휴 상태 자동 일시중지에 실패했습니다. Docker 접근 권한 또는 컨테이너 상태를 확인해주세요.",
+        });
+        if (pauseResult.ok) {
+          idleWarningSentSinceStartup = true;
+        }
       }
     }
   } catch (err) {
@@ -832,16 +865,13 @@ client.on("messageCreate", async (msg) => {
 
   if (content === "!일시중지") {
     console.log("[command] !일시중지 requested.");
-    try {
-      await docker("docker pause palworld-server");
-      console.log("[command] !일시중지: pause succeeded.");
-      msg.channel.send("🟡 서버가 일시중지되었습니다.");
-    } catch (err) {
-      console.log("[command] !일시중지: pause failed:", err.message);
-      msg.channel.send(
-        "⚠️ 서버 일시중지에 실패했습니다. Docker 접근 권한 또는 컨테이너 상태를 확인해주세요."
-      );
-    }
+    await pausePalworldServer({
+      source: "command",
+      channel: msg.channel,
+      successMessage: "🟡 서버가 일시중지되었습니다.",
+      failureMessage:
+        "⚠️ 서버 일시중지에 실패했습니다. Docker 접근 권한 또는 컨테이너 상태를 확인해주세요.",
+    });
   }
 
   if (content === "!재시작") {
