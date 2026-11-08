@@ -1,0 +1,59 @@
+name: Dependabot security auto-merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: dependabot-auto-merge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository && github.repository == 'MTGVim/palworld-server-bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # This privileged job only reads verified metadata; it never checks out PR code.
+      - uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
+        id: metadata
+      - name: Keep non-patch updates for manual review
+        if: steps.metadata.outputs.update-type != 'version-update:semver-patch'
+        run: gh pr merge --disable-auto "$PR_URL"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+      - name: Enable auto-merge after required checks
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --merge --match-head-commit "$PR_SHA" "$PR_URL"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+      # GITHUB_TOKEN merges do not trigger push workflows or branch-based Pages builds.
+      - name: Deploy the merged security update
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          for attempt in {1..150}; do
+            pr=$(gh pr view "$PR_URL" --json state,headRefOid)
+            test "$(jq -r .headRefOid <<< "$pr")" = "$PR_SHA" || exit 0
+            state=$(jq -r .state <<< "$pr")
+            if [ "$state" = MERGED ]; then
+              gh workflow run docker.yml --ref main
+              exit 0
+            fi
+            test "$state" = OPEN || exit 0
+            sleep 10
+          done
+          echo 'Auto-merge is pending; deployment was not started.' >&2
+          exit 1

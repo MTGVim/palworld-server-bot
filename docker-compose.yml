@@ -1,3 +1,4 @@
+# 보안 patch PR 병합 후 갱신되는 동일한 latest 이미지를 사용합니다.
 services:
   palbot:
     image: ghcr.io/mtgvim/palworld-server-bot:latest
