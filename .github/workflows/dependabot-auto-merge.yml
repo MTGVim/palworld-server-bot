@@ -55,5 +55,11 @@ jobs:
             test "$state" = OPEN || exit 0
             sleep 10
           done
-          echo 'Auto-merge is pending; deployment was not started.' >&2
+          # Prevent a later unattended merge after this deployment watcher exits.
+          gh pr merge --disable-auto "$PR_URL" || true
+          if [ "$(gh pr view "$PR_URL" --json state --jq .state)" = MERGED ]; then
+              gh workflow run docker.yml --ref main
+              exit 0
+          fi
+          echo 'Auto-merge timed out; manual review is required.' >&2
           exit 1
